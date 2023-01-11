@@ -12,28 +12,8 @@ go install github.com/chainguard-dev/yam@latest
 
 ### Format...
 
-...all `.yaml` and `.yml` files in the current directory:
-
-```shell
-yam
-```
-
-...one file:
-
 ```shell
 yam a.yaml
-```
-
-...two files:
-
-```shell
-yam a.yaml b.yaml
-```
-
-...THREE FILES!!! 😱
-
-```shell
-yam a.yaml b.yaml c.yaml
 ```
 
 ### Lint...
@@ -41,7 +21,7 @@ yam a.yaml b.yaml c.yaml
 Just add `--lint` to the command:
 
 ```shell
-yam --fix
+yam a.yaml --lint
 ```
 
 ## Formatting/Linting Options
@@ -49,21 +29,21 @@ yam --fix
 To expect a gap (empty line) in between child elements of a given node, just pass a `yq`-style path to the node, using `--gap`. You can use this flag as many times as needed.
 
 ```shell
-yam --gap '.'
+yam a.yaml --gap '.'
 ```
 
 ```shell
-yam --gap '.foo.bar'
+yam a.yaml --gap '.foo.bar'
 ```
 
 ```shell
-yam --gap '.people[].address'
+yam a.yaml --gap '.people[].address'
 ```
 
 ```shell
-yam --gap '.recipes[0].ingredients'
+yam a.yaml --gap '.recipes[0].ingredients'
 ```
 
 ```shell
-yam --gap '.types.*.inputs'
+yam a.yaml --gap '.types.*.inputs'
 ```
