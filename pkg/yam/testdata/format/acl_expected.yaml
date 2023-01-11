@@ -1,0 +1,24 @@
+package:
+  name: acl
+  target-architecture:
+    - all
+  copyright:
+    - paths:
+        - "*"
+      attestation: TODO
+      license: LGPL-2.1-or-later AND GPL-2.0-or-later
+      multiline: |
+        as,dfkad alsd aslkdj asdlkjasd asldkja sldkja sldkja sldkjasdl kjads
+          asdlkjasd laksdjlaskjd ladkja sldkjalsdkjlaksjd laskdjlasjdl askdlaskjdlaskdj
+
+          asdlkjasldkjalsdjalskdj asldkjalskdjalsdjlaskdjasdasdlkjasd
+        asdlkjasldjasldkjsdkjsdjasldkjsd
+
+environment:
+  contents:
+    packages:
+      - wolfi-base
+      - busybox
+      - ca-certificates-bundle
+      - build-base
+      - attr-dev
