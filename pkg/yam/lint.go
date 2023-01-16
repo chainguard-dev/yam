@@ -49,6 +49,9 @@ func lintPath(fsys fs.FS, path string, handler DiffHandler, options FormatOption
 	enc := formatted.NewEncoder(buf)
 	enc.SetIndent(options.Indent)
 	err = enc.SetGapExpressions(options.GapExpressions...)
+	if err != nil {
+		return err
+	}
 	err = enc.Encode(root)
 	if err != nil {
 		return err

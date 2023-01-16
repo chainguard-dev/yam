@@ -29,9 +29,9 @@ const (
 var ErrExpressionNotSupported = errors.New("expression not supported")
 
 var (
-	regexMapKey   = regexp.MustCompile("^(\\.([0-9a-zA-Z_-]+|\\*))([\\[\\.].*)?")
-	regexSeqIndex = regexp.MustCompile("^\\[(\\d*)\\]")
-	regexRootSeq  = regexp.MustCompile("^\\.\\[(\\d*)\\]")
+	regexMapKey   = regexp.MustCompile(`^(\.([0-9a-zA-Z_-]+|\*))([\[.].*)?`)
+	regexSeqIndex = regexp.MustCompile(`^\[(\d*)]`)
+	regexRootSeq  = regexp.MustCompile(`^\.\[(\d*)]`)
 )
 
 func Parse(expression string) (Path, error) {
@@ -103,8 +103,6 @@ func Parse(expression string) (Path, error) {
 		// nothing else it could be
 		return Path{}, ErrExpressionNotSupported
 	}
-
-	return result, nil
 }
 
 func (p Path) AppendMapPart(key string) Path {
