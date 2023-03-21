@@ -1,0 +1,13 @@
+# Copyright 2023 Chainguard, Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+spec:
+  authorities:
+    - keyless:
+        url: https://fulcio.sigstore.dev
+      ctlog:
+        url: https://rekor.sigstore.dev
+    - key:
+        # Allow commits signed by GitHub.
+        kms: https://github.com/web-flow.gpg
+
