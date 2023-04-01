@@ -18,6 +18,9 @@ func Test_formatPath(t *testing.T) {
 		{
 			fixture: "testdata/format/acl.yaml",
 		},
+		{
+			fixture: "testdata/format/comments.yaml",
+		},
 	}
 
 	options := FormatOptions{

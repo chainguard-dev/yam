@@ -1,0 +1,18 @@
+# This is a comment that spans
+# multiple lines.
+a:
+  # initial comment
+  - 1
+  - 2
+  # And finally
+  - 3
+  # Trailing comment.
+  - "And here's a string!"
+  - |
+      And a multi-line
+      string, too!
+
+b:
+  # comment before a mapping
+  - this: is cool
+    and: this is also cool

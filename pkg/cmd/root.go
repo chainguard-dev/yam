@@ -11,7 +11,7 @@ import (
 func Root() *cobra.Command {
 	p := &rootParams{}
 	cmd := &cobra.Command{
-		Use:           "yam",
+		Use:           "yam <file>...",
 		Short:         "format YAML files",
 		SilenceErrors: true,
 		SilenceUsage:  true,
