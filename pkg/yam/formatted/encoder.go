@@ -177,7 +177,7 @@ func (enc *Encoder) marshalSequence(node *yaml.Node, nodePath path.Path) ([]byte
 		// For scalar items, pull out the head comment, so we can control its encoding
 		// here, rather than delegate it to the underlying encoder.
 		var extractedHeadComment string
-		if item.Kind == yaml.ScalarNode && item.HeadComment != "" {
+		if item.HeadComment != "" {
 			extractedHeadComment = item.HeadComment + "\n"
 			item.HeadComment = ""
 		}
@@ -199,6 +199,7 @@ func (enc *Encoder) marshalSequence(node *yaml.Node, nodePath path.Path) ([]byte
 
 			// Precede with a dash.
 			itemBytes = bytes.Join([][]byte{
+				[]byte(extractedHeadComment),
 				dashSpace,
 				itemBytes,
 			}, nil)
