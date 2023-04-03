@@ -6,9 +6,6 @@ import (
 	"io"
 	"io/fs"
 	"path/filepath"
-
-	"github.com/chainguard-dev/yam/pkg/yam/formatted"
-	"gopkg.in/yaml.v3"
 )
 
 func Lint(fsys fs.FS, paths []string, handler DiffHandler, options FormatOptions) error {
@@ -30,35 +27,19 @@ func lintPath(fsys fs.FS, path string, handler DiffHandler, options FormatOption
 		return err
 	}
 
-	originalBytes, err := io.ReadAll(file)
+	// Save the original content for comparison after applying the formatting.
+	original := new(bytes.Buffer)
+	tee := io.TeeReader(file, original)
+
+	defer file.Close()
+
+	formatted, err := apply(tee, options)
 	if err != nil {
 		return err
 	}
 
-	file.Close()
-
-	root := &yaml.Node{}
-	decoder := yaml.NewDecoder(bytes.NewReader(originalBytes))
-	err = decoder.Decode(root)
-	if err != nil {
-		return err
-	}
-
-	buf := new(bytes.Buffer)
-
-	enc := formatted.NewEncoder(buf)
-	enc.SetIndent(options.Indent)
-	err = enc.SetGapExpressions(options.GapExpressions...)
-	if err != nil {
-		return err
-	}
-	err = enc.Encode(root)
-	if err != nil {
-		return err
-	}
-
-	want := buf.Bytes()
-	got := originalBytes
+	want := formatted.Bytes()
+	got := original.Bytes()
 
 	if !bytes.Equal(want, got) {
 		if handler != nil {

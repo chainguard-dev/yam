@@ -17,8 +17,10 @@ func Root() *cobra.Command {
 		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			options := yam.FormatOptions{
-				Indent:         p.indentSize,
-				GapExpressions: p.gaps,
+				Indent:                 p.indentSize,
+				GapExpressions:         p.gaps,
+				TrimTrailingWhitespace: true,
+				FinalNewline:           true,
 			}
 
 			if p.lint {

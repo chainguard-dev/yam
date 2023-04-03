@@ -21,6 +21,9 @@ func Test_formatPath(t *testing.T) {
 		{
 			fixture: "testdata/format/comments.yaml",
 		},
+		{
+			fixture: "testdata/format/whitespace_issues.yaml",
+		},
 	}
 
 	options := FormatOptions{
@@ -28,6 +31,8 @@ func Test_formatPath(t *testing.T) {
 		GapExpressions: []string{
 			".",
 		},
+		TrimTrailingWhitespace: true,
+		FinalNewline:           true,
 	}
 
 	for _, tt := range cases {

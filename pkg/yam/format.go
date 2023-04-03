@@ -1,19 +1,26 @@
 package yam
 
 import (
-	"bytes"
-	"fmt"
-	"io"
 	"path/filepath"
 
 	"github.com/chainguard-dev/yam/pkg/rwfs"
-	"github.com/chainguard-dev/yam/pkg/yam/formatted"
-	"gopkg.in/yaml.v3"
 )
 
 type FormatOptions struct {
-	Indent         int
+	// Indent specifies how many spaces to use per-indentation
+	Indent int
+
+	// GapExpressions specifies a list of yq-style paths for which the path's YAML
+	// element's children elements should be separated by an empty line
 	GapExpressions []string
+
+	// FinalNewline specifies whether to ensure the input has a final newline before
+	// further formatting is applied.
+	FinalNewline bool
+
+	// TrimTrailingWhitespace specifies whether to trim any trailing space
+	// characters from each line before further formatting is applied.
+	TrimTrailingWhitespace bool
 }
 
 func Format(fsys rwfs.FS, paths []string, options FormatOptions) error {
@@ -35,29 +42,9 @@ func formatPath(fsys rwfs.FS, path string, options FormatOptions) error {
 		return err
 	}
 
-	originalBytes, err := io.ReadAll(file)
-	if err != nil {
-		return err
-	}
+	defer file.Close()
 
-	file.Close()
-
-	root := &yaml.Node{}
-	decoder := yaml.NewDecoder(bytes.NewReader(originalBytes))
-	err = decoder.Decode(root)
-	if err != nil {
-		return err
-	}
-
-	buf := new(bytes.Buffer)
-	enc := formatted.NewEncoder(buf)
-	enc.SetIndent(options.Indent)
-	err = enc.SetGapExpressions(options.GapExpressions...)
-	if err != nil {
-		return fmt.Errorf("unable to set gap expression for encoder: %w", err)
-	}
-
-	err = enc.Encode(root)
+	formatted, err := apply(file, options)
 	if err != nil {
 		return err
 	}
@@ -71,7 +58,7 @@ func formatPath(fsys rwfs.FS, path string, options FormatOptions) error {
 		return err
 	}
 
-	_, err = buf.WriteTo(writeableFile)
+	_, err = formatted.WriteTo(writeableFile)
 	if err != nil {
 		return err
 	}
