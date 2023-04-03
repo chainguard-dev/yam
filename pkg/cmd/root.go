@@ -11,14 +11,16 @@ import (
 func Root() *cobra.Command {
 	p := &rootParams{}
 	cmd := &cobra.Command{
-		Use:           "yam",
+		Use:           "yam <file>...",
 		Short:         "format YAML files",
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			options := yam.FormatOptions{
-				Indent:         p.indentSize,
-				GapExpressions: p.gaps,
+				Indent:                 p.indentSize,
+				GapExpressions:         p.gaps,
+				TrimTrailingWhitespace: true,
+				FinalNewline:           true,
 			}
 
 			if p.lint {

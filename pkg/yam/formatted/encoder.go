@@ -174,19 +174,36 @@ func (enc *Encoder) marshalSequence(node *yaml.Node, nodePath path.Path) ([]byte
 	var lines [][]byte
 
 	for i, item := range node.Content {
+		// For scalar items, pull out the head comment, so we can control its encoding
+		// here, rather than delegate it to the underlying encoder.
+		var extractedHeadComment string
+		if item.HeadComment != "" {
+			extractedHeadComment = item.HeadComment + "\n"
+			item.HeadComment = ""
+		}
+
 		itemBytes, err := enc.marshal(item, nodePath.AppendSeqPart(i))
 		if err != nil {
 			return nil, err
 		}
 
-		if item.Kind != yaml.ScalarNode {
+		if item.Kind == yaml.ScalarNode {
+			// Print head comment first. Then continue.
+			itemBytes = bytes.Join([][]byte{
+				[]byte(extractedHeadComment),
+				dashSpace,
+				itemBytes,
+			}, nil)
+		} else {
 			itemBytes = enc.applyIndentExceptFirstLine(itemBytes)
-		}
 
-		itemBytes = bytes.Join([][]byte{
-			dashSpace,
-			itemBytes,
-		}, nil)
+			// Precede with a dash.
+			itemBytes = bytes.Join([][]byte{
+				[]byte(extractedHeadComment),
+				dashSpace,
+				itemBytes,
+			}, nil)
+		}
 
 		lines = append(lines, itemBytes)
 	}

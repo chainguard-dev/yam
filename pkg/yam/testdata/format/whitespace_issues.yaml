@@ -1,0 +1,11 @@
+# Be careful not to reformat or trim whitespace on this file.
+# It has intentional stray and missing whitespaces for testing.
+fruits:
+  - apple 
+  - banana
+  
+  - orange
+  - multiline: |
+      fruits 
+      taste
+      good

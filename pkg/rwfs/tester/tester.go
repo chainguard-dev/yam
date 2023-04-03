@@ -68,7 +68,10 @@ func (fsys *FS) Truncate(string, int64) error {
 
 func (fsys *FS) Diff(name string) string {
 	if tf, ok := fsys.fixtures[name]; ok {
-		diff := cmp.Diff(tf.expectedRead.String(), tf.writtenBack.String())
+		want := tf.expectedRead.Bytes()
+		got := tf.writtenBack.Bytes()
+
+		diff := cmp.Diff(want, got)
 
 		if diff == "" {
 			return ""
