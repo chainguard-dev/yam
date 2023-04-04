@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/chainguard-dev/yam/pkg/rwfs/tester"
+	"github.com/chainguard-dev/yam/pkg/yam/formatted"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,9 +28,11 @@ func Test_formatPath(t *testing.T) {
 	}
 
 	options := FormatOptions{
-		Indent: 2,
-		GapExpressions: []string{
-			".",
+		EncodeOptions: formatted.EncodeOptions{
+			Indent: 2,
+			GapExpressions: []string{
+				".",
+			},
 		},
 		TrimTrailingWhitespace: true,
 		FinalNewline:           true,

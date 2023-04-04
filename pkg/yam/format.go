@@ -6,23 +6,6 @@ import (
 	"github.com/chainguard-dev/yam/pkg/rwfs"
 )
 
-type FormatOptions struct {
-	// Indent specifies how many spaces to use per-indentation
-	Indent int
-
-	// GapExpressions specifies a list of yq-style paths for which the path's YAML
-	// element's children elements should be separated by an empty line
-	GapExpressions []string
-
-	// FinalNewline specifies whether to ensure the input has a final newline before
-	// further formatting is applied.
-	FinalNewline bool
-
-	// TrimTrailingWhitespace specifies whether to trim any trailing space
-	// characters from each line before further formatting is applied.
-	TrimTrailingWhitespace bool
-}
-
 func Format(fsys rwfs.FS, paths []string, options FormatOptions) error {
 	for _, path := range paths {
 		err := formatPath(fsys, path, options)
@@ -44,7 +27,7 @@ func formatPath(fsys rwfs.FS, path string, options FormatOptions) error {
 
 	defer file.Close()
 
-	formatted, err := apply(file, options)
+	formatted, err := applyFormatting(file, options)
 	if err != nil {
 		return err
 	}

@@ -33,7 +33,7 @@ func lintPath(fsys fs.FS, path string, handler DiffHandler, options FormatOption
 
 	defer file.Close()
 
-	formatted, err := apply(tee, options)
+	formatted, err := applyFormatting(tee, options)
 	if err != nil {
 		return err
 	}
