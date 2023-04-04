@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/chainguard-dev/yam/pkg/util"
 	"github.com/chainguard-dev/yam/pkg/yam/formatted/path"
 	"gopkg.in/yaml.v3"
 )
@@ -20,8 +21,6 @@ var (
 )
 
 const defaultIndentSize = 2
-
-const configFileName = ".yam.yaml"
 
 // EncodeOptions describes the set of configuration options used to adjust the
 // behavior of yam's YAML encoder.
@@ -76,7 +75,7 @@ func (enc Encoder) AutomaticConfig() Encoder {
 func ReadConfig() (*EncodeOptions, error) {
 	options := EncodeOptions{}
 
-	f, err := os.ReadFile(configFileName)
+	f, err := os.ReadFile(util.ConfigFileName)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read yam config: %w", err)
 	}

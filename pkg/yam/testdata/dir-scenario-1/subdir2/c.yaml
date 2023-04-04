@@ -1,0 +1,16 @@
+main:
+  sky: blue
+  letters: |
+    ay
+    bee
+    cee
+    dee
+    ee
+    eff
+  # comment for this next section
+  section:
+    subsection:
+      subsubsection:
+        subsubsubsection:
+          message: "hi"
+count: 42

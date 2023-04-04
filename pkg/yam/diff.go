@@ -10,6 +10,8 @@ import (
 type DiffHandler func(want, got []byte) error
 
 func ExecDiff(want, got []byte) error {
+	handlerOutput := os.Stderr
+
 	tempWant, err := os.CreateTemp("", "want-*")
 	if err != nil {
 		return err
@@ -50,8 +52,8 @@ func ExecDiff(want, got []byte) error {
 		tempWant.Name(),
 		tempGot.Name(),
 	)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = handlerOutput
+	cmd.Stderr = handlerOutput
 
 	err = cmd.Run()
 	if err != nil {
@@ -59,6 +61,9 @@ func ExecDiff(want, got []byte) error {
 		if errors.As(err, &exitError) {
 			if exitError.ExitCode() == 1 {
 				// that's expected for `diff` when there's a diff!
+
+				fmt.Fprint(handlerOutput, "\n") // for gap between diffs; useful if diffing multiple files.
+
 				return nil
 			}
 		}
