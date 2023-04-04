@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"github.com/chainguard-dev/yam/pkg/yam/formatted/path"
@@ -20,6 +21,21 @@ var (
 
 const defaultIndentSize = 2
 
+const configFileName = ".yam.yaml"
+
+// EncodeOptions describes the set of configuration options used to adjust the
+// behavior of yam's YAML encoder.
+type EncodeOptions struct {
+	// Indent specifies how many spaces to use per-indentation
+	Indent int `yaml:"indent"`
+
+	// GapExpressions specifies a list of yq-style paths for which the path's YAML
+	// element's children elements should be separated by an empty line
+	GapExpressions []string `yaml:"gap"`
+}
+
+// Encoder is an implementation of a YAML encoder that applies a configurable
+// formatting to the YAML data as it's written out to the encoder's io.Writer.
 type Encoder struct {
 	w          io.Writer
 	indentSize int
@@ -27,11 +43,13 @@ type Encoder struct {
 	gapPaths   []path.Path
 }
 
-func NewEncoder(w io.Writer) *Encoder {
+// NewEncoder returns a new encoder that can write formatted YAML to the given
+// io.Writer.
+func NewEncoder(w io.Writer) Encoder {
 	yamlEnc := yaml.NewEncoder(w)
 	yamlEnc.SetIndent(defaultIndentSize)
 
-	enc := &Encoder{
+	enc := Encoder{
 		w:          w,
 		yamlEnc:    yamlEnc,
 		indentSize: defaultIndentSize,
@@ -40,31 +58,83 @@ func NewEncoder(w io.Writer) *Encoder {
 	return enc
 }
 
-func (enc *Encoder) SetIndent(spaces int) {
-	enc.indentSize = spaces
-	enc.yamlEnc.SetIndent(spaces)
+// AutomaticConfig configures the encoder using a `.yam.yaml` config file in the
+// current working directory, if one exists. This method is meant to work on a
+// "best effort" basis, and all errors are silently ignored.
+func (enc Encoder) AutomaticConfig() Encoder {
+	options, _ := ReadConfig()
+
+	enc = enc.SetIndent(options.Indent)
+	enc, _ = enc.SetGapExpressions(options.GapExpressions...)
+
+	return enc
 }
 
-func (enc *Encoder) SetGapExpressions(expressions ...string) error {
+// ReadConfig tries to load a yam encoder config from a `.yam.yaml` file in the
+// current working directory. It returns an error if it wasn't able to open or
+// unmarshal the file.
+func ReadConfig() (*EncodeOptions, error) {
+	options := EncodeOptions{}
+
+	f, err := os.ReadFile(configFileName)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read yam config: %w", err)
+	}
+
+	err = yaml.Unmarshal(f, &options)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read yam config: %w", err)
+	}
+
+	return &options, nil
+}
+
+// SetIndent configures the encoder to use the provided number of spaces for
+// each indentation.
+func (enc Encoder) SetIndent(spaces int) Encoder {
+	enc.indentSize = spaces
+	enc.yamlEnc.SetIndent(spaces)
+	return enc
+}
+
+// SetGapExpressions takes 0 or more YAML path expressions (e.g. "." or
+// ".something.foo") and configures the encoder to insert empty lines ("gaps")
+// in between the children elements of the YAML nodes referenced by the path
+// expressions.
+func (enc Encoder) SetGapExpressions(expressions ...string) (Encoder, error) {
 	for _, expr := range expressions {
 		p, err := path.Parse(expr)
 		if err != nil {
-			return fmt.Errorf("unable to parse expression %q: %w", expr, err)
+			return Encoder{}, fmt.Errorf("unable to parse expression %q: %w", expr, err)
 		}
 
 		enc.gapPaths = append(enc.gapPaths, p)
 	}
 
-	return nil
+	return enc, nil
 }
 
-func (enc *Encoder) Encode(node *yaml.Node) error {
-	bytes, err := enc.Marshal(node)
+// UseOptions configures the encoder to use the configuration from the given
+// EncodeOptions.
+func (enc Encoder) UseOptions(options EncodeOptions) (Encoder, error) {
+	enc = enc.SetIndent(options.Indent)
+	enc, err := enc.SetGapExpressions(options.GapExpressions...)
+	if err != nil {
+		return Encoder{}, err
+	}
+
+	return enc, nil
+}
+
+// Encode writes out the formatted YAML from the given yaml.Node to the
+// encoder's io.Writer.
+func (enc Encoder) Encode(node *yaml.Node) error {
+	b, err := enc.marshalRoot(node)
 	if err != nil {
 		return err
 	}
 
-	_, err = enc.w.Write(bytes)
+	_, err = enc.w.Write(b)
 	if err != nil {
 		return err
 	}
@@ -72,11 +142,11 @@ func (enc *Encoder) Encode(node *yaml.Node) error {
 	return nil
 }
 
-func (enc *Encoder) Marshal(node *yaml.Node) ([]byte, error) {
+func (enc Encoder) marshalRoot(node *yaml.Node) ([]byte, error) {
 	return enc.marshal(node, path.Root())
 }
 
-func (enc *Encoder) marshal(node *yaml.Node, nodePath path.Path) ([]byte, error) {
+func (enc Encoder) marshal(node *yaml.Node, nodePath path.Path) ([]byte, error) {
 	switch node.Kind {
 	case yaml.DocumentNode:
 		var bytes []byte
@@ -107,7 +177,7 @@ func (enc *Encoder) marshal(node *yaml.Node, nodePath path.Path) ([]byte, error)
 	}
 }
 
-func (enc *Encoder) marshalMapping(node *yaml.Node, nodePath path.Path) ([]byte, error) {
+func (enc Encoder) marshalMapping(node *yaml.Node, nodePath path.Path) ([]byte, error) {
 	// Note: A mapping node's content items are laid out as key-value pairs!
 
 	var result []byte
@@ -170,7 +240,7 @@ func isMapKeyIndex(i int) bool {
 	return i%2 == 0
 }
 
-func (enc *Encoder) marshalSequence(node *yaml.Node, nodePath path.Path) ([]byte, error) {
+func (enc Encoder) marshalSequence(node *yaml.Node, nodePath path.Path) ([]byte, error) {
 	var lines [][]byte
 
 	for i, item := range node.Content {
@@ -216,7 +286,7 @@ func (enc *Encoder) marshalSequence(node *yaml.Node, nodePath path.Path) ([]byte
 	return bytes.Join(lines, sep), nil
 }
 
-func (enc *Encoder) applyIndent(content []byte) []byte {
+func (enc Encoder) applyIndent(content []byte) []byte {
 	var processedLines []string
 
 	scanner := bufio.NewScanner(bytes.NewReader(content))
@@ -235,7 +305,7 @@ func (enc *Encoder) applyIndent(content []byte) []byte {
 	return result
 }
 
-func (enc *Encoder) applyIndentExceptFirstLine(content []byte) []byte {
+func (enc Encoder) applyIndentExceptFirstLine(content []byte) []byte {
 	var processedLines []string
 
 	scanner := bufio.NewScanner(bytes.NewReader(content))
@@ -259,7 +329,7 @@ func (enc *Encoder) applyIndentExceptFirstLine(content []byte) []byte {
 	return []byte(strings.Join(processedLines, "\n") + "\n")
 }
 
-func (enc *Encoder) matchesAnyGapPath(testSubject path.Path) bool {
+func (enc Encoder) matchesAnyGapPath(testSubject path.Path) bool {
 	for _, gp := range enc.gapPaths {
 		if gp.Matches(testSubject) {
 			return true
@@ -269,7 +339,7 @@ func (enc *Encoder) matchesAnyGapPath(testSubject path.Path) bool {
 	return false
 }
 
-func (enc *Encoder) handleMultilineStringIndentation(content []byte) []byte {
+func (enc Encoder) handleMultilineStringIndentation(content []byte) []byte {
 	// For some reason, yaml.Marshal seemed to be indenting non-first lines twice.
 
 	lines := bytes.Split(content, newline)
@@ -284,6 +354,6 @@ func (enc *Encoder) handleMultilineStringIndentation(content []byte) []byte {
 	return bytes.Join(lines, newline)
 }
 
-func (enc *Encoder) indentString() string {
+func (enc Encoder) indentString() string {
 	return strings.Repeat(" ", enc.indentSize)
 }

@@ -10,7 +10,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func apply(input io.Reader, options FormatOptions) (*bytes.Buffer, error) {
+func applyFormatting(input io.Reader, options FormatOptions) (*bytes.Buffer, error) {
 	b, err := io.ReadAll(input)
 	if err != nil {
 		return nil, err
@@ -33,10 +33,9 @@ func apply(input io.Reader, options FormatOptions) (*bytes.Buffer, error) {
 
 	buf := new(bytes.Buffer)
 	enc := formatted.NewEncoder(buf)
-	enc.SetIndent(options.Indent)
-	err = enc.SetGapExpressions(options.GapExpressions...)
+	enc, err = enc.UseOptions(options.EncodeOptions)
 	if err != nil {
-		return nil, fmt.Errorf("unable to set gap expression for encoder: %w", err)
+		return nil, fmt.Errorf("unable to use options with encoder: %w", err)
 	}
 
 	err = enc.Encode(root)
