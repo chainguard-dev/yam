@@ -148,11 +148,6 @@ func newErrLintCheckFailed(paths ...string) errLintCheckFailed {
 	return errLintCheckFailed{paths: paths}
 }
 
-func (e errLintCheckFailed) appendPaths(paths ...string) errLintCheckFailed {
-	e.paths = append(e.paths, paths...)
-	return e
-}
-
 func (e errLintCheckFailed) Error() string {
 	return fmt.Sprintf("the following was not formatted correctly: %s", strings.Join(e.paths, ", "))
 }
