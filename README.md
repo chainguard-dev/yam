@@ -12,17 +12,33 @@ go install github.com/chainguard-dev/yam@latest
 
 ### Format...
 
+To update file contents to match your formatting configuration, just specify one or more YAML files.
+
 ```shell
-yam a.yaml
+yam a.yaml b.yaml
+```
+
+You can also specify directories with YAML files in them. (Yam doesn't recurse through directories in directories.)
+
+```shell
+yam ./dir-with-some-yamls
+```
+
+And you can format files in the current working directory if you don't pass any arguments:
+
+```shell
+yam
 ```
 
 ### Lint...
 
-Just add `--lint` to the command:
+To **_lint_** files instead of formatting them, just add `--lint` to the command. With this flag, Yam doesn't make any changes to your files, but it will exit `1` if any files don't match your formatting configuration.
 
 ```shell
 yam a.yaml --lint
 ```
+
+When linting, if Yam finds any files that don't pass the lint check, it will output a diff of what it got vs. what it expected to see.
 
 ## Formatting/Linting Options
 

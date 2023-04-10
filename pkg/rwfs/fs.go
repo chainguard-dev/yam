@@ -6,7 +6,8 @@ import (
 )
 
 type FS interface {
-	Open(name string) (File, error)
+	Open(name string) (fs.File, error)
+	OpenRW(name string) (File, error)
 	Truncate(name string, size int64) error
 }
 
