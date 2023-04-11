@@ -61,7 +61,11 @@ func NewEncoder(w io.Writer) Encoder {
 // current working directory, if one exists. This method is meant to work on a
 // "best effort" basis, and all errors are silently ignored.
 func (enc Encoder) AutomaticConfig() Encoder {
-	options, _ := ReadConfig()
+	options, err := ReadConfig()
+	if err != nil {
+		// Didn't find a config to apply, but that's okay.
+		return enc
+	}
 
 	enc = enc.SetIndent(options.Indent)
 	enc, _ = enc.SetGapExpressions(options.GapExpressions...)
