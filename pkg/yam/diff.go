@@ -44,7 +44,6 @@ func ExecDiff(want, got []byte) error {
 		command,
 		"-U",
 		"5",
-		"--color=always",
 		"--label",
 		"want",
 		"--label",
