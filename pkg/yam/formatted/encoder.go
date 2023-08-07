@@ -77,14 +77,25 @@ func (enc Encoder) AutomaticConfig() Encoder {
 // current working directory. It returns an error if it wasn't able to open or
 // unmarshal the file.
 func ReadConfig() (*EncodeOptions, error) {
-	options := EncodeOptions{}
-
-	f, err := os.ReadFile(util.ConfigFileName)
+	f, err := os.Open(util.ConfigFileName)
 	if err != nil {
-		return nil, fmt.Errorf("unable to read yam config: %w", err)
+		return nil, fmt.Errorf("unable to open yam config: %w", err)
 	}
 
-	err = yaml.Unmarshal(f, &options)
+	config, err := ReadConfigFrom(f)
+	if err != nil {
+		return nil, err
+	}
+
+	return config, nil
+}
+
+// ReadConfigFrom loads a yam encoder config from the given io.Reader. It
+// returns an error if it wasn't able to unmarshal the data.
+func ReadConfigFrom(r io.Reader) (*EncodeOptions, error) {
+	options := EncodeOptions{}
+
+	err := yaml.NewDecoder(r).Decode(&options)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read yam config: %w", err)
 	}
