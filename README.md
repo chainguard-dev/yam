@@ -84,6 +84,9 @@ should be sorted.
 yam a.yaml --sort .packages
 ```
 
+**Note** This is only meant to be used for scalars, behavior for objects is not
+supported.
+
 ### Using a config file
 
 Yam will also look for a `.yam.yaml` file in the current working directory as a source of configuration. Using a config file is optional. CLI flag values take priority over config file values. The config file can be used to configure `indent` and `gap` values only.
