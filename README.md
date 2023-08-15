@@ -74,6 +74,16 @@ You can also set the indent size (number of spaces) using `--indent`. Yam uses 2
 yam a.yaml --indent 4
 ```
 
+### Sorting sequences
+
+You can also sort sequences so that for example you get alphabetized packages
+list using `--sort` where `--sort` takes in a `yq`-style path to the node that
+should be sorted.
+
+```shell
+yam a.yaml --sort .packages
+```
+
 ### Using a config file
 
 Yam will also look for a `.yam.yaml` file in the current working directory as a source of configuration. Using a config file is optional. CLI flag values take priority over config file values. The config file can be used to configure `indent` and `gap` values only.

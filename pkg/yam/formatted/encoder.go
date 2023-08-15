@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/chainguard-dev/yam/pkg/util"
@@ -31,6 +32,10 @@ type EncodeOptions struct {
 	// GapExpressions specifies a list of yq-style paths for which the path's YAML
 	// element's children elements should be separated by an empty line
 	GapExpressions []string `yaml:"gap"`
+
+	// SortExpressions specifies a list of yq-style paths for which the path's YAML
+	// element's children elements should be sorted
+	SortExpressions []string `yaml:"sort"`
 }
 
 // Encoder is an implementation of a YAML encoder that applies a configurable
@@ -40,6 +45,7 @@ type Encoder struct {
 	indentSize int
 	yamlEnc    *yaml.Encoder
 	gapPaths   []path.Path
+	sortPaths  []path.Path
 }
 
 // NewEncoder returns a new encoder that can write formatted YAML to the given
@@ -128,11 +134,30 @@ func (enc Encoder) SetGapExpressions(expressions ...string) (Encoder, error) {
 	return enc, nil
 }
 
+// SetSortExpressions takes 0 or more YAML path expressions (e.g. "." or
+// ".something.foo") and configures the encoder to sort the arrays.
+func (enc Encoder) SetSortExpressions(expressions ...string) (Encoder, error) {
+	for _, expr := range expressions {
+		p, err := path.Parse(expr)
+		if err != nil {
+			return Encoder{}, fmt.Errorf("unable to parse expression %q: %w", expr, err)
+		}
+
+		enc.sortPaths = append(enc.sortPaths, p)
+	}
+
+	return enc, nil
+}
+
 // UseOptions configures the encoder to use the configuration from the given
 // EncodeOptions.
 func (enc Encoder) UseOptions(options EncodeOptions) (Encoder, error) {
 	enc = enc.SetIndent(options.Indent)
 	enc, err := enc.SetGapExpressions(options.GapExpressions...)
+	if err != nil {
+		return Encoder{}, err
+	}
+	enc, err = enc.SetSortExpressions(options.SortExpressions...)
 	if err != nil {
 		return Encoder{}, err
 	}
@@ -257,6 +282,13 @@ func isMapKeyIndex(i int) bool {
 func (enc Encoder) marshalSequence(node *yaml.Node, nodePath path.Path) ([]byte, error) {
 	var lines [][]byte
 
+	// Sort the sequence if configured to do so before marshalling.
+	if node.Kind == yaml.SequenceNode && enc.matchesAnySortPath(nodePath) {
+		sort.Slice(node.Content, func(i int, j int) bool {
+			return node.Content[i].Value < node.Content[j].Value
+		})
+	}
+
 	for i, item := range node.Content {
 		// For scalar items, pull out the head comment, so we can control its encoding
 		// here, rather than delegate it to the underlying encoder.
@@ -350,6 +382,15 @@ func (enc Encoder) matchesAnyGapPath(testSubject path.Path) bool {
 		}
 	}
 
+	return false
+}
+
+func (enc Encoder) matchesAnySortPath(testSubject path.Path) bool {
+	for _, sp := range enc.sortPaths {
+		if sp.Matches(testSubject) {
+			return true
+		}
+	}
 	return false
 }
 
