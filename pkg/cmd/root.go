@@ -13,6 +13,7 @@ import (
 const (
 	flagIndent       = "indent"
 	flagGap          = "gap"
+	flagSort         = "sort"
 	flagFinalNewline = "final-newline"
 	flagTrimLines    = "trim-lines"
 	flagLint         = "lint"
@@ -28,6 +29,7 @@ func Root() *cobra.Command {
 
 	cmd.Flags().Int(flagIndent, 2, "number of spaces used to indent a line")
 	cmd.Flags().StringSlice(flagGap, nil, "YAML path expression to a mapping or sequence node whose children should be separated by empty lines")
+	cmd.Flags().StringSlice(flagSort, nil, "YAML path expression to a mapping or sequence node whose children should be sorted")
 	cmd.Flags().Bool(flagFinalNewline, true, "ensure file ends with a final newline character")
 	cmd.Flags().Bool(flagTrimLines, true, "trim any trailing spaces from each line")
 	cmd.Flags().Bool(flagLint, false, "don't modify files, but exit 1 if files aren't formatted")
@@ -89,6 +91,13 @@ func computeFormatOptions(cfg *formatted.EncodeOptions, cmd *cobra.Command) yam.
 		gapExpressions = cfg.GapExpressions
 	}
 
+	var sortExpressions []string
+	if flag := flags.Lookup(flagSort); flag.Changed {
+		sortExpressions, _ = flags.GetStringSlice(flagSort)
+	} else if cfg != nil {
+		sortExpressions = cfg.SortExpressions
+	}
+
 	var finalNewline = true
 	if flag := flags.Lookup(flagFinalNewline); flag.Changed {
 		finalNewline, _ = flags.GetBool(flagFinalNewline)
@@ -101,8 +110,9 @@ func computeFormatOptions(cfg *formatted.EncodeOptions, cmd *cobra.Command) yam.
 
 	return yam.FormatOptions{
 		EncodeOptions: formatted.EncodeOptions{
-			Indent:         indent,
-			GapExpressions: gapExpressions,
+			Indent:          indent,
+			GapExpressions:  gapExpressions,
+			SortExpressions: sortExpressions,
 		},
 		FinalNewline:           finalNewline,
 		TrimTrailingWhitespace: trimLines,
