@@ -15,10 +15,11 @@ import (
 )
 
 var (
-	newline   = []byte("\n")
-	colon     = []byte(":")
-	space     = []byte(" ")
-	dashSpace = []byte("- ")
+	newline           = []byte("\n")
+	colon             = []byte(":")
+	space             = []byte(" ")
+	dashSpace         = []byte("- ")
+	flowStyleEmptyMap = []byte("{}")
 )
 
 const defaultIndentSize = 2
@@ -221,6 +222,7 @@ func (enc Encoder) marshalMapping(node *yaml.Node, nodePath path.Path) ([]byte, 
 
 	var result []byte
 	var latestKey string
+
 	for i, item := range node.Content {
 		if isMapKeyIndex(i) {
 			rawKeyBytes, err := enc.marshal(item, nodePath)
@@ -237,7 +239,7 @@ func (enc Encoder) marshalMapping(node *yaml.Node, nodePath path.Path) ([]byte, 
 				colon,
 			}, nil)
 
-			if nextItem := node.Content[i+1]; nextItem.Kind == yaml.ScalarNode && nextItem.Tag != "!!null" { // TODO: check that there is a value node for this key node
+			if nextItem := node.Content[i+1]; (nextItem.Kind == yaml.ScalarNode && nextItem.Tag != "!!null") || nextItem.Style == yaml.FlowStyle { // TODO: check that there is a value node for this key node
 				// render in same line
 				keyBytes = append(keyBytes, space...)
 			} else {
@@ -263,13 +265,21 @@ func (enc Encoder) marshalMapping(node *yaml.Node, nodePath path.Path) ([]byte, 
 			valueBytes = append(valueBytes, newline...)
 		}
 
-		if item.Kind == yaml.MappingNode || item.Kind == yaml.SequenceNode {
+		if item.Style != yaml.FlowStyle && (item.Kind == yaml.MappingNode || item.Kind == yaml.SequenceNode) {
 			valueBytes = enc.applyIndent(valueBytes)
 		} else {
 			valueBytes = enc.handleMultilineStringIndentation(valueBytes)
 		}
 
+		if item.Style == yaml.FlowStyle && node.Style != yaml.FlowStyle {
+			valueBytes = append(valueBytes, newline...)
+		}
+
 		result = append(result, valueBytes...)
+	}
+
+	if len(node.Content) == 0 && node.Style == yaml.FlowStyle {
+		result = append(result, flowStyleEmptyMap...)
 	}
 
 	return result, nil
