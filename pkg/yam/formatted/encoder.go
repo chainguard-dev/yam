@@ -199,6 +199,12 @@ func (enc Encoder) marshal(node *yaml.Node, nodePath path.Path) ([]byte, error) 
 		return bytes, nil
 
 	case yaml.MappingNode:
+		// Handle empty mappings explicitly
+		//if len(node.Content) == 0 {
+		//	return []byte("{}"), nil
+		//}
+
+		// Marshal non-empty mappings
 		return enc.marshalMapping(node, nodePath)
 
 	case yaml.SequenceNode:
@@ -212,7 +218,6 @@ func (enc Encoder) marshal(node *yaml.Node, nodePath path.Path) ([]byte, error) 
 
 	default:
 		return yaml.Marshal(node)
-
 	}
 }
 
@@ -221,49 +226,49 @@ func (enc Encoder) marshalMapping(node *yaml.Node, nodePath path.Path) ([]byte, 
 
 	var result []byte
 	var latestKey string
-	for i, item := range node.Content {
-		if isMapKeyIndex(i) {
-			rawKeyBytes, err := enc.marshal(item, nodePath)
-			if err != nil {
-				return nil, err
-			}
+	for i := 0; i < len(node.Content); i += 2 {
+		keyNode := node.Content[i]
+		valueNode := node.Content[i+1]
 
-			// assume the key can be a string (this isn't always true in YAML, but we'll see how far this gets us)
-			key := bytes.TrimSuffix(rawKeyBytes, newline)
-			latestKey = string(key)
-
-			keyBytes := bytes.Join([][]byte{
-				key,
-				colon,
-			}, nil)
-
-			if nextItem := node.Content[i+1]; nextItem.Kind == yaml.ScalarNode && nextItem.Tag != "!!null" { // TODO: check that there is a value node for this key node
-				// render in same line
-				keyBytes = append(keyBytes, space...)
-			} else {
-				keyBytes = append(keyBytes, newline...)
-			}
-
-			result = append(result, keyBytes...)
-			continue
-		}
-
-		nodePathForValue := nodePath.AppendMapPart(latestKey)
-
-		valueBytes, err := enc.marshal(item, nodePathForValue)
+		rawKeyBytes, err := enc.marshal(keyNode, nodePath)
 		if err != nil {
 			return nil, err
 		}
 
-		isFinalMapValue := i == len(node.Content)-1
+		key := bytes.TrimSuffix(rawKeyBytes, newline)
+		latestKey = string(key)
 
-		// This was the key's value node, so add a gap if configured to do so.
-		// We shouldn't add a newline after the final map value, though.
+		keyBytes := bytes.Join([][]byte{
+			key,
+			colon,
+		}, nil)
+
+		// Check for empty mapping node and handle it
+		if valueNode.Kind == yaml.MappingNode && len(valueNode.Content) == 0 {
+			keyBytes = append(keyBytes, space...)
+			keyBytes = append(keyBytes, []byte("{}")...)
+		} else if valueNode.Kind == yaml.ScalarNode && valueNode.Tag != "!!null" {
+			// Render scalar values in the same line
+			keyBytes = append(keyBytes, space...)
+		} else {
+			keyBytes = append(keyBytes, newline...)
+		}
+
+		result = append(result, keyBytes...)
+
+		valueBytes, err := enc.marshal(valueNode, nodePath.AppendMapPart(latestKey))
+		if err != nil {
+			return nil, err
+		}
+
+		isFinalMapValue := (i + 1) == len(node.Content)-1
+
+		// Avoid adding a newline after the final map value
 		if enc.matchesAnyGapPath(nodePath) && !isFinalMapValue {
 			valueBytes = append(valueBytes, newline...)
 		}
 
-		if item.Kind == yaml.MappingNode || item.Kind == yaml.SequenceNode {
+		if valueNode.Kind == yaml.MappingNode || valueNode.Kind == yaml.SequenceNode {
 			valueBytes = enc.applyIndent(valueBytes)
 		} else {
 			valueBytes = enc.handleMultilineStringIndentation(valueBytes)
@@ -273,10 +278,6 @@ func (enc Encoder) marshalMapping(node *yaml.Node, nodePath path.Path) ([]byte, 
 	}
 
 	return result, nil
-}
-
-func isMapKeyIndex(i int) bool {
-	return i%2 == 0
 }
 
 func (enc Encoder) marshalSequence(node *yaml.Node, nodePath path.Path) ([]byte, error) {
