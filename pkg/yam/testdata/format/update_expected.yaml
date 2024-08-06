@@ -1,0 +1,6 @@
+update:
+  enabled: true
+  git: {}
+  schedule:
+    daily: true
+    reason: upstream does not maintain tags or releases, it uses a branch

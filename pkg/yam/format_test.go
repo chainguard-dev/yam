@@ -36,6 +36,9 @@ func Test_formatSingleFile(t *testing.T) {
 		{
 			fixture: "testdata/format/whitespace_issues.yaml",
 		},
+		{
+			fixture: "testdata/format/update.yaml",
+		},
 	}
 
 	for _, tt := range cases {
