@@ -71,3 +71,94 @@ func TestSortingSequence(t *testing.T) {
 		}
 	}
 }
+
+func TestEncoder_Encode(t *testing.T) {
+	// Sample data as yaml.Node
+	node := &yaml.Node{
+		Kind: yaml.MappingNode,
+		Content: []*yaml.Node{
+			{Kind: yaml.ScalarNode, Value: "update"},
+			{Kind: yaml.MappingNode, Content: []*yaml.Node{
+				{Kind: yaml.ScalarNode, Value: "enabled"},
+				{Kind: yaml.ScalarNode, Value: "true"},
+				{Kind: yaml.ScalarNode, Value: "git"},
+				{Kind: yaml.MappingNode, Style: yaml.FlowStyle},
+				{Kind: yaml.ScalarNode, Value: "schedule"},
+				{Kind: yaml.MappingNode, Content: []*yaml.Node{
+					{Kind: yaml.ScalarNode, Value: "daily"},
+					{Kind: yaml.ScalarNode, Value: "true"},
+					{Kind: yaml.ScalarNode, Value: "reason"},
+					{Kind: yaml.ScalarNode, Value: "upstream does not maintain tags or releases, it uses a branch"},
+				}},
+			}},
+		},
+	}
+
+	// Sample data as user-defined type
+	type Schedule struct {
+		Daily  bool   `yaml:"daily"`
+		Reason string `yaml:"reason"`
+	}
+	type Update struct {
+		Enabled  bool     `yaml:"enabled"`
+		Git      struct{} `yaml:"git"`
+		Schedule Schedule `yaml:"schedule"`
+	}
+	type Document struct {
+		Update Update `yaml:"update"`
+	}
+	document := Document{
+		Update: Update{
+			Enabled: true,
+			Schedule: Schedule{
+				Daily:  true,
+				Reason: "upstream does not maintain tags or releases, it uses a branch",
+			},
+		},
+	}
+
+	// Expected YAML output
+	expectedYAML := `update:
+  enabled: true
+  git: {}
+  schedule:
+    daily: true
+    reason: upstream does not maintain tags or releases, it uses a branch
+`
+
+	t.Run("yaml.Node", func(t *testing.T) {
+		var outNode bytes.Buffer
+		encoderNode := NewEncoder(&outNode)
+		err := encoderNode.Encode(node)
+		require.NoError(t, err)
+
+		checkDiff(t, expectedYAML, outNode.String())
+	})
+
+	t.Run("user-defined type", func(t *testing.T) {
+		// Encode user-defined type
+		var outStruct bytes.Buffer
+		encoderStruct := NewEncoder(&outStruct)
+		err := encoderStruct.Encode(document)
+		require.NoError(t, err)
+
+		checkDiff(t, expectedYAML, outStruct.String())
+	})
+}
+
+func checkDiff(t *testing.T, expected, actual any) {
+	t.Helper()
+
+	if diff := cmp.Diff(expected, actual); diff != "" {
+		t.Errorf(`unexpected document (-want +got):
+%s
+
+full expected:
+
+%s
+
+full actual:
+
+%s`, diff, expected, actual)
+	}
+}
