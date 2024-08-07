@@ -166,9 +166,25 @@ func (enc Encoder) UseOptions(options EncodeOptions) (Encoder, error) {
 	return enc, nil
 }
 
-// Encode writes out the formatted YAML from the given yaml.Node to the
-// encoder's io.Writer.
-func (enc Encoder) Encode(node *yaml.Node) error {
+// Encode writes out the formatted YAML from the given value to the encoder's
+// io.Writer.
+func (enc Encoder) Encode(in any) error {
+	var node *yaml.Node
+	switch n := in.(type) {
+	case *yaml.Node:
+		node = n
+
+	case yaml.Node:
+		node = &n
+
+	default:
+		node = new(yaml.Node)
+		err := node.Encode(in)
+		if err != nil {
+			return fmt.Errorf("encoding input to YAML AST node: %w", err)
+		}
+	}
+
 	b, err := enc.marshalRoot(node)
 	if err != nil {
 		return err
