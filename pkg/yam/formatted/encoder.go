@@ -104,7 +104,7 @@ func ReadConfigFrom(r io.Reader) (*EncodeOptions, error) {
 
 	err := yaml.NewDecoder(r).Decode(&options)
 	if err != nil {
-		return nil, fmt.Errorf("unable to read yam config: %w", err)
+		return nil, fmt.Errorf("parsing yam config: %w", err)
 	}
 
 	return &options, nil
