@@ -1,10 +1,12 @@
 package cmd
 
 import (
-	"errors"
+	"fmt"
+	"io"
 	"os"
 
 	osAdapter "github.com/chainguard-dev/yam/pkg/rwfs/os"
+	"github.com/chainguard-dev/yam/pkg/util"
 	"github.com/chainguard-dev/yam/pkg/yam"
 	"github.com/chainguard-dev/yam/pkg/yam/formatted"
 	"github.com/spf13/cobra"
@@ -17,6 +19,7 @@ const (
 	flagFinalNewline = "final-newline"
 	flagTrimLines    = "trim-lines"
 	flagLint         = "lint"
+	flagConfig       = "config"
 )
 
 func Root() *cobra.Command {
@@ -33,6 +36,7 @@ func Root() *cobra.Command {
 	cmd.Flags().Bool(flagFinalNewline, true, "ensure file ends with a final newline character")
 	cmd.Flags().Bool(flagTrimLines, true, "trim any trailing spaces from each line")
 	cmd.Flags().Bool(flagLint, false, "don't modify files, but exit 1 if files aren't formatted")
+	cmd.Flags().StringP(flagConfig, "c", "", "path to a yam configuration YAML file")
 
 	cmd.RunE = runRoot
 
@@ -40,10 +44,8 @@ func Root() *cobra.Command {
 }
 
 func runRoot(cmd *cobra.Command, args []string) error {
-	var err error
-
-	encoderConfig, err := formatted.ReadConfig()
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
+	encoderConfig, err := getConfig(cmd)
+	if err != nil {
 		return err
 	}
 
@@ -68,6 +70,34 @@ func runRoot(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+func getConfig(cmd *cobra.Command) (*formatted.EncodeOptions, error) {
+	var r io.Reader
+	if v, _ := cmd.Flags().GetString(flagConfig); v != "" {
+		f, err := os.Open(v)
+		if err != nil {
+			return nil, fmt.Errorf("opening configuration file: %w", err)
+		}
+		r = f
+	} else {
+		f, err := os.Open(util.ConfigFileName)
+		if err != nil {
+			// This is a default best-effort attempt, no need to bubble up the error.
+			return nil, nil
+		}
+		r = f
+	}
+
+	if r == nil {
+		return nil, nil
+	}
+
+	cfg, err := formatted.ReadConfigFrom(r)
+	if err != nil {
+		return nil, fmt.Errorf("reading configuration: %w", err)
+	}
+	return cfg, nil
 }
 
 // computeFormatOptions produces a new yam.FormatOptions using an optional
