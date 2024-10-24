@@ -50,7 +50,7 @@ func Test_formatSingleFile(t *testing.T) {
 			assert.NoError(t, err)
 
 			if diff := fsys.Diff(tt.fixture); diff != "" {
-				t.Errorf(diff)
+				t.Error(diff)
 			}
 		})
 	}
@@ -79,7 +79,7 @@ func TestFormat(t *testing.T) {
 			require.NoError(t, err)
 
 			if diff := fsys.DiffAll(); diff != "" {
-				t.Errorf(diff)
+				t.Error(diff)
 			}
 		})
 	}
