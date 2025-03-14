@@ -4,4 +4,4 @@
     entry: yam
     language: golang
     stages: [pre-commit, manual]
-    types: [yaml]
+    types: [yml]
