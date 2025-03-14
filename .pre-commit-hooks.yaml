@@ -2,6 +2,6 @@
     name: Format yaml properly using yam
     description: Helps to prevent any linting check failures in CI 
     entry: yam
-    language: go
+    language: golang
     stages: [pre-commit, manual]
     types: [yaml]
