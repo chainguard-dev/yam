@@ -37,6 +37,10 @@ type EncodeOptions struct {
 	// SortExpressions specifies a list of yq-style paths for which the path's YAML
 	// element's children elements should be sorted
 	SortExpressions []string `yaml:"sort"`
+
+	// QuoteExpressions specifies a list of yq-style paths for which the path's YAML
+	// elemet's values should be quoted
+	QuoteExpressions []string `yaml:"quote"`
 }
 
 // Encoder is an implementation of a YAML encoder that applies a configurable
@@ -47,6 +51,7 @@ type Encoder struct {
 	yamlEnc    *yaml.Encoder
 	gapPaths   []path.Path
 	sortPaths  []path.Path
+	quotePaths []path.Path
 }
 
 // NewEncoder returns a new encoder that can write formatted YAML to the given
@@ -76,6 +81,7 @@ func (enc Encoder) AutomaticConfig() Encoder {
 
 	enc = enc.SetIndent(options.Indent)
 	enc, _ = enc.SetGapExpressions(options.GapExpressions...)
+	enc, _ = enc.SetQuoteExpressions(options.QuoteExpressions...)
 
 	return enc
 }
@@ -150,6 +156,21 @@ func (enc Encoder) SetSortExpressions(expressions ...string) (Encoder, error) {
 	return enc, nil
 }
 
+// SetQuoteExpressions takes 0 or more YAML path expressions (e.g. "." or
+// ."something.foo") and configures the encoder to quote those fields.
+func (enc Encoder) SetQuoteExpressions(expressions ...string) (Encoder, error) {
+	for _, expr := range expressions {
+		p, err := path.Parse(expr)
+		if err != nil {
+			return Encoder{}, fmt.Errorf("unable to parse expression %q: %w", expr, err)
+		}
+
+		enc.quotePaths = append(enc.quotePaths, p)
+	}
+
+	return enc, nil
+}
+
 // UseOptions configures the encoder to use the configuration from the given
 // EncodeOptions.
 func (enc Encoder) UseOptions(options EncodeOptions) (Encoder, error) {
@@ -159,6 +180,11 @@ func (enc Encoder) UseOptions(options EncodeOptions) (Encoder, error) {
 		return Encoder{}, err
 	}
 	enc, err = enc.SetSortExpressions(options.SortExpressions...)
+	if err != nil {
+		return Encoder{}, err
+	}
+
+	enc, err = enc.SetQuoteExpressions(options.QuoteExpressions...)
 	if err != nil {
 		return Encoder{}, err
 	}
@@ -224,6 +250,9 @@ func (enc Encoder) marshal(node *yaml.Node, nodePath path.Path) ([]byte, error) 
 	case yaml.ScalarNode:
 		if node.Tag == "!!null" {
 			return nil, nil
+		}
+		if enc.matchesAnyQuotePath(nodePath) {
+			node.Style |= yaml.DoubleQuotedStyle
 		}
 		return yaml.Marshal(node)
 
@@ -413,6 +442,15 @@ func (enc Encoder) matchesAnyGapPath(testSubject path.Path) bool {
 
 func (enc Encoder) matchesAnySortPath(testSubject path.Path) bool {
 	for _, sp := range enc.sortPaths {
+		if sp.Matches(testSubject) {
+			return true
+		}
+	}
+	return false
+}
+
+func (enc Encoder) matchesAnyQuotePath(testSubject path.Path) bool {
+	for _, sp := range enc.quotePaths {
 		if sp.Matches(testSubject) {
 			return true
 		}
