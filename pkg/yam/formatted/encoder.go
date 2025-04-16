@@ -39,7 +39,7 @@ type EncodeOptions struct {
 	SortExpressions []string `yaml:"sort"`
 
 	// QuoteExpressions specifies a list of yq-style paths for which the path's YAML
-	// elemet's values should be quoted
+	// element's values should be quoted
 	QuoteExpressions []string `yaml:"quote"`
 }
 
