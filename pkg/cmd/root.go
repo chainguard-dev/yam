@@ -38,7 +38,7 @@ func Root() *cobra.Command {
 	cmd.Flags().Bool(flagTrimLines, true, "trim any trailing spaces from each line")
 	cmd.Flags().Bool(flagLint, false, "don't modify files, but exit 1 if files aren't formatted")
 	cmd.Flags().StringP(flagConfig, "c", "", "path to a yam configuration YAML file")
-	cmd.Flags().StringSlice(flagQuote, nil, "YAML path expression to a node or sequnce of nodes that should be quoted")
+	cmd.Flags().StringSlice(flagQuote, nil, "YAML path expression to a node that should be quoted")
 
 	cmd.RunE = runRoot
 
