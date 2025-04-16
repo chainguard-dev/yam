@@ -157,7 +157,7 @@ func (enc Encoder) SetSortExpressions(expressions ...string) (Encoder, error) {
 }
 
 // SetQuoteExpressions takes 0 or more YAML path expressions (e.g. "." or
-// ."something.foo") and configures the encoder to quote those fields.
+// ".something.foo") and configures the encoder to quote those fields.
 func (enc Encoder) SetQuoteExpressions(expressions ...string) (Encoder, error) {
 	for _, expr := range expressions {
 		p, err := path.Parse(expr)
