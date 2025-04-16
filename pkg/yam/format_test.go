@@ -15,6 +15,9 @@ var testOptions = FormatOptions{
 		GapExpressions: []string{
 			".",
 		},
+		QuoteExpressions: []string{
+			".quotes.version",
+		},
 	},
 	TrimTrailingWhitespace: true,
 	FinalNewline:           true,
@@ -38,6 +41,9 @@ func Test_formatSingleFile(t *testing.T) {
 		},
 		{
 			fixture: "testdata/format/update.yaml",
+		},
+		{
+			fixture: "testdata/format/quotes.yaml",
 		},
 	}
 
