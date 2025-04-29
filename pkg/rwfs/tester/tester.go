@@ -2,6 +2,7 @@ package tester
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -34,9 +35,9 @@ func NewFS(fixtures ...string) (*FS, error) {
 		}
 
 		if stat.IsDir() {
-			err := fs.WalkDir(realDirFS, f, func(path string, d fs.DirEntry, err error) error {
-				if err != nil {
-					return err
+			errWalk := fs.WalkDir(realDirFS, f, func(path string, d fs.DirEntry, errFunc error) error {
+				if errFunc != nil {
+					return errFunc
 				}
 
 				if d.Type().IsDir() {
@@ -50,16 +51,16 @@ func NewFS(fixtures ...string) (*FS, error) {
 						return nil
 					}
 
-					err := testerFS.addFixtureFileFromOS(path)
-					if err != nil {
-						return fmt.Errorf("unable to create new tester.FS: %w", err)
+					errFixture := testerFS.addFixtureFileFromOS(path)
+					if errFixture != nil {
+						return fmt.Errorf("unable to create new tester.FS: %w", errFixture)
 					}
 				}
 
 				return nil
 			})
-			if err != nil {
-				return nil, fmt.Errorf("unable to walk fixture directory %q: %w", f, err)
+			if errWalk != nil {
+				return nil, fmt.Errorf("unable to walk fixture directory %q: %w", f, errWalk)
 			}
 
 			continue
@@ -193,9 +194,9 @@ type testFile struct {
 	originalRead, expectedRead, writtenBack *bytes.Buffer
 }
 
-func (t *testFile) ReadDir(n int) ([]fs.DirEntry, error) {
+func (t *testFile) ReadDir(_ int) ([]fs.DirEntry, error) {
 	if !t.isDir {
-		return nil, fmt.Errorf("not a directory")
+		return nil, errors.New("not a directory")
 	}
 
 	dirEntries, err := os.ReadDir(t.path)

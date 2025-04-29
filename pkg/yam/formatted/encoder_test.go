@@ -2,7 +2,6 @@ package formatted
 
 import (
 	"bytes"
-	"os"
 	"testing"
 
 	"github.com/chainguard-dev/yam/pkg/yam/formatted/path"
@@ -19,8 +18,7 @@ const (
 
 func TestEncoder_AutomaticConfig(t *testing.T) {
 	t.Run("gracefully handles missing config file", func(t *testing.T) {
-		err := os.Chdir("testdata/empty-dir")
-		require.NoError(t, err)
+		t.Chdir("testdata/empty-dir")
 
 		w := new(bytes.Buffer)
 

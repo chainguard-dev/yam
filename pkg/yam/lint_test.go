@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func didNotPassLintCheck(t assert.TestingT, err error, i ...interface{}) bool {
+func didNotPassLintCheck(t assert.TestingT, err error, _ ...interface{}) bool {
 	return assert.ErrorIs(t, err, ErrDidNotPassLintCheck)
 }
 

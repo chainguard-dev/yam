@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var assertErrExpressionNotSupported assert.ErrorAssertionFunc = func(t assert.TestingT, err error, i ...interface{}) bool {
+var assertErrExpressionNotSupported assert.ErrorAssertionFunc = func(t assert.TestingT, err error, _ ...interface{}) bool {
 	return assert.ErrorIs(t, err, ErrExpressionNotSupported)
 }
 

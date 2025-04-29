@@ -32,16 +32,16 @@ func Lint(fsys fs.FS, paths []string, handler DiffHandler, options FormatOptions
 		}
 
 		if stat.IsDir() {
-			err := lintDir(fsys, p, handler, options)
-			if err != nil {
+			errLint := lintDir(fsys, p, handler, options)
+			if errLint != nil {
 				var e errLintCheckFailed
-				if errors.As(err, &e) {
+				if errors.As(errLint, &e) {
 					pathsThatFailedLinting = append(pathsThatFailedLinting, e.paths...)
 					continue
 				}
 
 				// An error more serious than lint check failure has occurred.
-				return err
+				return errLint
 			}
 
 			continue
@@ -80,14 +80,14 @@ func lintDir(fsys fs.FS, dirPath string, handler DiffHandler, options FormatOpti
 		}
 
 		p := filepath.Join(dirPath, file.Name())
-		err := lintSingleFile(fsys, p, handler, options)
-		if err != nil {
-			if errors.As(err, &errLintCheckFailed{}) {
+		errSingleFile := lintSingleFile(fsys, p, handler, options)
+		if errSingleFile != nil {
+			if errors.As(errSingleFile, &errLintCheckFailed{}) {
 				dirEntriesThatFailedLinting = append(dirEntriesThatFailedLinting, p)
 				continue
 			}
 
-			return err
+			return errSingleFile
 		}
 	}
 
@@ -128,9 +128,9 @@ func lintSingleFile(fsys fs.FS, path string, handler DiffHandler, options Format
 		fmt.Fprintf(os.Stderr, "%s has a diff from the expected formatting\n", path)
 
 		if handler != nil {
-			err := handler(want, got)
-			if err != nil {
-				return fmt.Errorf("unable to handle diff: %w", err)
+			errHandler := handler(want, got)
+			if errHandler != nil {
+				return fmt.Errorf("unable to handle diff: %w", errHandler)
 			}
 		}
 

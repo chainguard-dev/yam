@@ -22,9 +22,9 @@ func Format(fsys rwfs.FS, paths []string, options FormatOptions) error {
 		}
 
 		if stat.IsDir() {
-			err := formatDir(fsys, p, options)
-			if err != nil {
-				return fmt.Errorf("unable to format directory %q: %w", p, err)
+			errDir := formatDir(fsys, p, options)
+			if errDir != nil {
+				return fmt.Errorf("unable to format directory %q: %w", p, errDir)
 			}
 
 			continue
@@ -51,9 +51,9 @@ func formatDir(fsys rwfs.FS, dirPath string, options FormatOptions) error {
 		}
 
 		p := filepath.Join(dirPath, file.Name())
-		err := formatSingleFile(fsys, p, options)
-		if err != nil {
-			return err
+		errsingleFile := formatSingleFile(fsys, p, options)
+		if errsingleFile != nil {
+			return errsingleFile
 		}
 	}
 
@@ -93,7 +93,7 @@ func formatSingleFile(fsys rwfs.FS, path string, options FormatOptions) error {
 		return err
 	}
 
-	writeableFile.Close()
+	_ = writeableFile.Close()
 
 	return nil
 }
