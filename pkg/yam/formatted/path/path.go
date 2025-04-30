@@ -175,13 +175,12 @@ func partsMatch(pattern, testSubject Part) bool {
 		return true
 
 	case mapPart:
-		ts := testSubject.(mapPart)
+		ts, _ := testSubject.(mapPart)
 		return tp.key == ts.key || tp.key == anyKey
 
 	case seqPart:
-		ts := testSubject.(seqPart)
+		ts, _ := testSubject.(seqPart)
 		return tp.index == ts.index || tp.index == anyIndex
-
 	}
 
 	return false

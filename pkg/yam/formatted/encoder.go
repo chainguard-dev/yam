@@ -258,7 +258,6 @@ func (enc Encoder) marshal(node *yaml.Node, nodePath path.Path) ([]byte, error) 
 
 	default:
 		return yaml.Marshal(node)
-
 	}
 }
 
