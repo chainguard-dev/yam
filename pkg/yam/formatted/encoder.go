@@ -254,6 +254,26 @@ func (enc Encoder) marshal(node *yaml.Node, nodePath path.Path) ([]byte, error) 
 		if enc.matchesAnyQuotePath(nodePath) {
 			node.Style |= yaml.DoubleQuotedStyle
 		}
+
+		// Fix: For FoldedStyle (>) blocks, preserve newlines instead of joining lines
+		if node.Style == yaml.FoldedStyle {
+			// Manually encode folded style
+			var buf bytes.Buffer
+			buf.WriteString(">\n")
+			lines := strings.Split(node.Value, "\n")
+			for i, line := range lines {
+				if i > 0 {
+					buf.WriteString("\n")
+				}
+				if line != "" {
+					buf.WriteString(enc.indentString())
+				}
+				buf.WriteString(line)
+			}
+			buf.WriteString("\n")
+			return buf.Bytes(), nil
+		}
+
 		return yaml.Marshal(node)
 
 	default:
