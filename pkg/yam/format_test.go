@@ -17,6 +17,9 @@ var testOptions = FormatOptions{
 		},
 		QuoteExpressions: []string{
 			".quotes.version",
+			".quotes.port",
+			".quotes.timeout",
+			".quotes.count",
 		},
 	},
 	TrimTrailingWhitespace: true,
@@ -44,6 +47,9 @@ func Test_formatSingleFile(t *testing.T) {
 		},
 		{
 			fixture: "testdata/format/quotes.yaml",
+		},
+		{
+			fixture: "testdata/format/quotes_float.yaml",
 		},
 	}
 
