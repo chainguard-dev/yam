@@ -21,6 +21,7 @@ const (
 	flagLint         = "lint"
 	flagConfig       = "config"
 	flagQuote        = "quote"
+	flagDedup        = "dedup"
 )
 
 func Root() *cobra.Command {
@@ -39,6 +40,7 @@ func Root() *cobra.Command {
 	cmd.Flags().Bool(flagLint, false, "don't modify files, but exit 1 if files aren't formatted")
 	cmd.Flags().StringP(flagConfig, "c", "", "path to a yam configuration YAML file")
 	cmd.Flags().StringSlice(flagQuote, nil, "YAML path expression to a node that should be quoted")
+	cmd.Flags().StringSlice(flagDedup, nil, "YAML path expression to a sequence node whose children should be deduplicated")
 
 	cmd.RunE = runRoot
 
@@ -137,6 +139,13 @@ func computeFormatOptions(cfg *formatted.EncodeOptions, cmd *cobra.Command) yam.
 		quoteExpressions = cfg.QuoteExpressions
 	}
 
+	var dedupExpressions []string
+	if flag := flags.Lookup(flagDedup); flag.Changed {
+		dedupExpressions, _ = flags.GetStringSlice(flagDedup)
+	} else if cfg != nil {
+		dedupExpressions = cfg.DedupExpressions
+	}
+
 	var finalNewline = true
 	if flag := flags.Lookup(flagFinalNewline); flag.Changed {
 		finalNewline, _ = flags.GetBool(flagFinalNewline)
@@ -153,6 +162,7 @@ func computeFormatOptions(cfg *formatted.EncodeOptions, cmd *cobra.Command) yam.
 			GapExpressions:   gapExpressions,
 			SortExpressions:  sortExpressions,
 			QuoteExpressions: quoteExpressions,
+			DedupExpressions: dedupExpressions,
 		},
 		FinalNewline:           finalNewline,
 		TrimTrailingWhitespace: trimLines,
