@@ -43,7 +43,7 @@ type EncodeOptions struct {
 	QuoteExpressions []string `yaml:"quote"`
 
 	// DedupExpressions specifies a list of yq-style paths for which the path's YAML
-	// element's children elements should be deduplicated (removing duplicate values)
+	// element's children elements should be deduplicated
 	DedupExpressions []string `yaml:"dedup"`
 }
 
