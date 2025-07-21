@@ -243,7 +243,7 @@ func TestDedupAndSortSequence(t *testing.T) {
 			name:        "dedup only, no sort",
 			expressions: []string{".vegetables"},
 			inputValues: []string{"zebra", "apple", "banana", "apple", "zebra", "orange"},
-			want:        "- zebra\n- apple\n- banana\n- apple\n- zebra\n- orange\n", // no dedup since path doesn't match
+			want:        "- zebra\n- apple\n- banana\n- apple\n- zebra\n- orange\n",
 		},
 	}
 
