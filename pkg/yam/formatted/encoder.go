@@ -43,20 +43,20 @@ type EncodeOptions struct {
 	QuoteExpressions []string `yaml:"quote"`
 
 	// DedupExpressions specifies a list of yq-style paths for which the path's YAML
-	// element's children elements should be deduplicated (removing duplicate values)
+	// element's children elements should be deduplicated
 	DedupExpressions []string `yaml:"dedup"`
 }
 
 // Encoder is an implementation of a YAML encoder that applies a configurable
 // formatting to the YAML data as it's written out to the encoder's io.Writer.
 type Encoder struct {
-	w           io.Writer
-	indentSize  int
-	yamlEnc     *yaml.Encoder
-	gapPaths    []path.Path
-	sortPaths   []path.Path
-	quotePaths  []path.Path
-	dedupPaths  []path.Path
+	w          io.Writer
+	indentSize int
+	yamlEnc    *yaml.Encoder
+	gapPaths   []path.Path
+	sortPaths  []path.Path
+	quotePaths []path.Path
+	dedupPaths []path.Path
 }
 
 // NewEncoder returns a new encoder that can write formatted YAML to the given
@@ -373,7 +373,7 @@ func (enc Encoder) marshalSequence(node *yaml.Node, nodePath path.Path) ([]byte,
 	if node.Kind == yaml.SequenceNode && enc.matchesAnyDedupPath(nodePath) {
 		seen := make(map[string]bool)
 		var uniqueContent []*yaml.Node
-		
+
 		for _, item := range node.Content {
 			if item.Kind == yaml.ScalarNode {
 				if !seen[item.Value] {
@@ -384,7 +384,7 @@ func (enc Encoder) marshalSequence(node *yaml.Node, nodePath path.Path) ([]byte,
 				uniqueContent = append(uniqueContent, item)
 			}
 		}
-		
+
 		node.Content = uniqueContent
 	}
 

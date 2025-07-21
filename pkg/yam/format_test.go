@@ -23,6 +23,20 @@ var testOptions = FormatOptions{
 	FinalNewline:           true,
 }
 
+var testOptionsWithDedup = FormatOptions{
+	EncodeOptions: formatted.EncodeOptions{
+		Indent: 2,
+		DedupExpressions: []string{
+			".fruits",
+			".vegetables",
+			".mixed",
+			".nested_map.nested",
+		},
+	},
+	TrimTrailingWhitespace: true,
+	FinalNewline:           true,
+}
+
 func Test_formatSingleFile(t *testing.T) {
 	cases := []struct {
 		fixture string
@@ -60,6 +74,20 @@ func Test_formatSingleFile(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_formatSingleFileWithDedup(t *testing.T) {
+	t.Run("testdata/format/dedup.yaml", func(t *testing.T) {
+		fsys, err := tester.NewFS("testdata/format/dedup.yaml")
+		require.NoError(t, err)
+
+		err = formatSingleFile(fsys, "testdata/format/dedup.yaml", testOptionsWithDedup)
+		assert.NoError(t, err)
+
+		if diff := fsys.Diff("testdata/format/dedup.yaml"); diff != "" {
+			t.Error(diff)
+		}
+	})
 }
 
 func TestFormat(t *testing.T) {

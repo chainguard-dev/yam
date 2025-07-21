@@ -1,0 +1,17 @@
+fruits:
+  - apple
+  - banana
+  - orange
+  - cherry
+vegetables:
+  - carrot
+  - potato
+  - broccoli
+mixed:
+  - item1
+  - item2
+  - item3
+nested_map:
+  nested:
+    - sub1
+    - sub2
