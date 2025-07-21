@@ -144,6 +144,191 @@ func TestEncoder_Encode(t *testing.T) {
 	})
 }
 
+func TestDedupSequence(t *testing.T) {
+	tests := []struct {
+		name            string
+		dedupExpression string
+		nodePath        string
+		inputValues     []string
+		want            string
+	}{
+		{
+			name:            "dedup enabled for matching path",
+			dedupExpression: ".fruits",
+			nodePath:        ".fruits",
+			inputValues:     []string{"apple", "banana", "apple", "orange", "banana"},
+			want:            "- apple\n- banana\n- orange\n",
+		},
+		{
+			name:            "dedup disabled for non-matching path",
+			dedupExpression: ".vegetables",
+			nodePath:        ".fruits",
+			inputValues:     []string{"apple", "banana", "apple", "orange", "banana"},
+			want:            "- apple\n- banana\n- apple\n- orange\n- banana\n",
+		},
+		{
+			name:            "dedup with no duplicates",
+			dedupExpression: ".fruits",
+			nodePath:        ".fruits",
+			inputValues:     []string{"apple", "banana", "orange"},
+			want:            "- apple\n- banana\n- orange\n",
+		},
+		{
+			name:            "dedup with all duplicates",
+			dedupExpression: ".fruits",
+			nodePath:        ".fruits",
+			inputValues:     []string{"apple", "apple", "apple"},
+			want:            "- apple\n",
+		},
+		{
+			name:            "dedup with empty sequence",
+			dedupExpression: ".fruits",
+			nodePath:        ".fruits",
+			inputValues:     []string{},
+			want:            "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var contentNodes []*yaml.Node
+			for _, value := range tc.inputValues {
+				contentNodes = append(contentNodes, &yaml.Node{Kind: yaml.ScalarNode, Value: value})
+			}
+
+			node := &yaml.Node{
+				Kind:    yaml.SequenceNode,
+				Content: contentNodes,
+			}
+
+			var out bytes.Buffer
+			encoder := NewEncoder(&out)
+			encoder = encoder.SetIndent(2)
+			encoder, err := encoder.SetDedupExpressions(tc.dedupExpression)
+			if err != nil {
+				t.Fatalf("Failed to SetDedupExpressions for %s: %+v", tc.dedupExpression, err)
+			}
+
+			nodePath, err := path.Parse(tc.nodePath)
+			if err != nil {
+				t.Fatalf("failed to parse path: %+v", err)
+			}
+
+			got, err := encoder.marshalSequence(node, nodePath)
+			if err != nil {
+				t.Errorf("Failed to marshal sequence: %+v", err)
+			}
+
+			if diff := cmp.Diff(tc.want, string(got)); diff != "" {
+				t.Errorf("Deduplication failed (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestDedupAndSortSequence(t *testing.T) {
+	tests := []struct {
+		name        string
+		expressions []string
+		inputValues []string
+		want        string
+	}{
+		{
+			name:        "sort then dedup",
+			expressions: []string{".fruits"},
+			inputValues: []string{"zebra", "apple", "banana", "apple", "zebra", "orange"},
+			want:        "- apple\n- banana\n- orange\n- zebra\n",
+		},
+		{
+			name:        "dedup only, no sort",
+			expressions: []string{".vegetables"},
+			inputValues: []string{"zebra", "apple", "banana", "apple", "zebra", "orange"},
+			want:        "- zebra\n- apple\n- banana\n- apple\n- zebra\n- orange\n",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var contentNodes []*yaml.Node
+			for _, value := range tc.inputValues {
+				contentNodes = append(contentNodes, &yaml.Node{Kind: yaml.ScalarNode, Value: value})
+			}
+
+			node := &yaml.Node{
+				Kind:    yaml.SequenceNode,
+				Content: contentNodes,
+			}
+
+			var out bytes.Buffer
+			encoder := NewEncoder(&out)
+			encoder = encoder.SetIndent(2)
+
+			if tc.name == "sort then dedup" {
+				encoder, _ = encoder.SetSortExpressions(".fruits")
+			}
+			encoder, err := encoder.SetDedupExpressions(tc.expressions[0])
+			if err != nil {
+				t.Fatalf("Failed to SetDedupExpressions: %+v", err)
+			}
+
+			nodePath, err := path.Parse(".fruits")
+			if err != nil {
+				t.Fatalf("failed to parse path: %+v", err)
+			}
+
+			got, err := encoder.marshalSequence(node, nodePath)
+			if err != nil {
+				t.Errorf("Failed to marshal sequence: %+v", err)
+			}
+
+			if diff := cmp.Diff(tc.want, string(got)); diff != "" {
+				t.Errorf("Sort and dedup combination failed (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestDedupWithNonScalarNodes(t *testing.T) {
+	node := &yaml.Node{
+		Kind: yaml.SequenceNode,
+		Content: []*yaml.Node{
+			{Kind: yaml.ScalarNode, Value: "apple"},
+			{Kind: yaml.MappingNode, Content: []*yaml.Node{
+				{Kind: yaml.ScalarNode, Value: "type"},
+				{Kind: yaml.ScalarNode, Value: "fruit"},
+			}},
+			{Kind: yaml.ScalarNode, Value: "apple"},
+			{Kind: yaml.MappingNode, Content: []*yaml.Node{
+				{Kind: yaml.ScalarNode, Value: "type"},
+				{Kind: yaml.ScalarNode, Value: "fruit"},
+			}},
+		},
+	}
+
+	var out bytes.Buffer
+	encoder := NewEncoder(&out)
+	encoder = encoder.SetIndent(2)
+	encoder, err := encoder.SetDedupExpressions(".items")
+	if err != nil {
+		t.Fatalf("Failed to SetDedupExpressions: %+v", err)
+	}
+
+	nodePath, err := path.Parse(".items")
+	if err != nil {
+		t.Fatalf("failed to parse path: %+v", err)
+	}
+
+	got, err := encoder.marshalSequence(node, nodePath)
+	if err != nil {
+		t.Errorf("Failed to marshal sequence: %+v", err)
+	}
+
+	expected := "- apple\n- type: fruit\n- type: fruit\n"
+	if diff := cmp.Diff(expected, string(got)); diff != "" {
+		t.Errorf("Non-scalar preservation failed (-want +got):\n%s", diff)
+	}
+}
+
 func checkDiff(t *testing.T, expected, actual any) {
 	t.Helper()
 

@@ -41,6 +41,10 @@ type EncodeOptions struct {
 	// QuoteExpressions specifies a list of yq-style paths for which the path's YAML
 	// element's values should be quoted
 	QuoteExpressions []string `yaml:"quote"`
+
+	// DedupExpressions specifies a list of yq-style paths for which the path's YAML
+	// element's children elements should be deduplicated
+	DedupExpressions []string `yaml:"dedup"`
 }
 
 // Encoder is an implementation of a YAML encoder that applies a configurable
@@ -52,6 +56,7 @@ type Encoder struct {
 	gapPaths   []path.Path
 	sortPaths  []path.Path
 	quotePaths []path.Path
+	dedupPaths []path.Path
 }
 
 // NewEncoder returns a new encoder that can write formatted YAML to the given
@@ -82,6 +87,7 @@ func (enc Encoder) AutomaticConfig() Encoder {
 	enc = enc.SetIndent(options.Indent)
 	enc, _ = enc.SetGapExpressions(options.GapExpressions...)
 	enc, _ = enc.SetQuoteExpressions(options.QuoteExpressions...)
+	enc, _ = enc.SetDedupExpressions(options.DedupExpressions...)
 
 	return enc
 }
@@ -171,6 +177,21 @@ func (enc Encoder) SetQuoteExpressions(expressions ...string) (Encoder, error) {
 	return enc, nil
 }
 
+// SetDedupExpressions takes 0 or more YAML path expressions (e.g. "." or
+// ".something.foo") and configures the encoder to deduplicate the arrays.
+func (enc Encoder) SetDedupExpressions(expressions ...string) (Encoder, error) {
+	for _, expr := range expressions {
+		p, err := path.Parse(expr)
+		if err != nil {
+			return Encoder{}, fmt.Errorf("unable to parse expression %q: %w", expr, err)
+		}
+
+		enc.dedupPaths = append(enc.dedupPaths, p)
+	}
+
+	return enc, nil
+}
+
 // UseOptions configures the encoder to use the configuration from the given
 // EncodeOptions.
 func (enc Encoder) UseOptions(options EncodeOptions) (Encoder, error) {
@@ -185,6 +206,11 @@ func (enc Encoder) UseOptions(options EncodeOptions) (Encoder, error) {
 	}
 
 	enc, err = enc.SetQuoteExpressions(options.QuoteExpressions...)
+	if err != nil {
+		return Encoder{}, err
+	}
+
+	enc, err = enc.SetDedupExpressions(options.DedupExpressions...)
 	if err != nil {
 		return Encoder{}, err
 	}
@@ -343,6 +369,25 @@ func (enc Encoder) marshalSequence(node *yaml.Node, nodePath path.Path) ([]byte,
 		})
 	}
 
+	// Deduplicate the sequence if configured to do so after sorting.
+	if node.Kind == yaml.SequenceNode && enc.matchesAnyDedupPath(nodePath) {
+		seen := make(map[string]bool)
+		var uniqueContent []*yaml.Node
+
+		for _, item := range node.Content {
+			if item.Kind == yaml.ScalarNode {
+				if !seen[item.Value] {
+					seen[item.Value] = true
+					uniqueContent = append(uniqueContent, item)
+				}
+			} else {
+				uniqueContent = append(uniqueContent, item)
+			}
+		}
+
+		node.Content = uniqueContent
+	}
+
 	for i, item := range node.Content {
 		// For scalar items, pull out the head comment, so we can control its encoding
 		// here, rather than delegate it to the underlying encoder.
@@ -451,6 +496,15 @@ func (enc Encoder) matchesAnySortPath(testSubject path.Path) bool {
 func (enc Encoder) matchesAnyQuotePath(testSubject path.Path) bool {
 	for _, sp := range enc.quotePaths {
 		if sp.Matches(testSubject) {
+			return true
+		}
+	}
+	return false
+}
+
+func (enc Encoder) matchesAnyDedupPath(testSubject path.Path) bool {
+	for _, dp := range enc.dedupPaths {
+		if dp.Matches(testSubject) {
 			return true
 		}
 	}
