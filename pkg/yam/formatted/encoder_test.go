@@ -332,34 +332,34 @@ func TestDedupWithNonScalarNodes(t *testing.T) {
 func TestMarshalMappingWithMissingValue(t *testing.T) {
 	// Test that the encoder doesn't crash when a mapping has a key without a corresponding value
 	// This tests the bounds checking fix for accessing node.Content[i+1]
-	
+
 	// Create a malformed mapping node with odd number of content items (key without value)
 	keyNode := &yaml.Node{
 		Kind:  yaml.ScalarNode,
 		Tag:   "!!str",
 		Value: "key",
 	}
-	
+
 	mappingNode := &yaml.Node{
 		Kind:    yaml.MappingNode,
 		Content: []*yaml.Node{keyNode}, // Only key, no value - this would cause index out of bounds
 	}
-	
+
 	var out bytes.Buffer
 	encoder := NewEncoder(&out)
 	encoder = encoder.SetIndent(2)
-	
+
 	nodePath, err := path.Parse(".")
 	if err != nil {
 		t.Fatalf("failed to parse path: %+v", err)
 	}
-	
+
 	// This should not panic and should handle the missing value gracefully
 	result, err := encoder.marshalMapping(mappingNode, nodePath)
 	if err != nil {
 		t.Errorf("marshalMapping failed: %+v", err)
 	}
-	
+
 	// The result should contain the key with a newline (since no value exists)
 	expected := "key:\n"
 	if string(result) != expected {
