@@ -309,10 +309,16 @@ func (enc Encoder) marshalMapping(node *yaml.Node, nodePath path.Path) ([]byte, 
 				colon,
 			}, nil)
 
-			if nextItem := node.Content[i+1]; (nextItem.Kind == yaml.ScalarNode && nextItem.Tag != "!!null") || nextItem.Style == yaml.FlowStyle { // TODO: check that there is a value node for this key node
-				// render in same line
-				keyBytes = append(keyBytes, space...)
+			if i+1 < len(node.Content) {
+				// Check that there is a value node for this key node before accessing it
+				if nextItem := node.Content[i+1]; (nextItem.Kind == yaml.ScalarNode && nextItem.Tag != "!!null") || nextItem.Style == yaml.FlowStyle {
+					// render in same line
+					keyBytes = append(keyBytes, space...)
+				} else {
+					keyBytes = append(keyBytes, newline...)
+				}
 			} else {
+				// No corresponding value for this key, add newline
 				keyBytes = append(keyBytes, newline...)
 			}
 
