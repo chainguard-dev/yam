@@ -360,8 +360,8 @@ func TestMarshalMappingWithMissingValue(t *testing.T) {
 		t.Errorf("marshalMapping failed: %+v", err)
 	}
 
-	// The result should contain the key with a newline (since no value exists)
-	expected := "key:\n"
+	// The result should be empty since malformed keys (without values) are skipped
+	expected := ""
 	if string(result) != expected {
 		t.Errorf("unexpected result: got %q, want %q", string(result), expected)
 	}

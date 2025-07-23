@@ -318,8 +318,10 @@ func (enc Encoder) marshalMapping(node *yaml.Node, nodePath path.Path) ([]byte, 
 					keyBytes = append(keyBytes, newline...)
 				}
 			} else {
-				// No corresponding value for this key, add newline
-				keyBytes = append(keyBytes, newline...)
+				// No corresponding value for this key - this indicates malformed YAML input.
+				// This can happen when pipeline injection creates extra empty nodes.
+				// Skip rendering this malformed key to avoid creating invalid YAML.
+				continue
 			}
 
 			result = append(result, keyBytes...)
