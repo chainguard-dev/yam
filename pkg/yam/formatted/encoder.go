@@ -86,6 +86,7 @@ func (enc Encoder) AutomaticConfig() Encoder {
 
 	enc = enc.SetIndent(options.Indent)
 	enc, _ = enc.SetGapExpressions(options.GapExpressions...)
+	enc, _ = enc.SetSortExpressions(options.SortExpressions...)
 	enc, _ = enc.SetQuoteExpressions(options.QuoteExpressions...)
 	enc, _ = enc.SetDedupExpressions(options.DedupExpressions...)
 
@@ -295,14 +296,27 @@ func (enc Encoder) marshalMapping(node *yaml.Node, nodePath path.Path) ([]byte, 
 
 	for i, item := range node.Content {
 		if isMapKeyIndex(i) {
+			// For path construction, we need just the key value without comments
+			// Use the node's Value directly if it's a scalar, otherwise marshal it
+			var latestKeyValue string
+			if item.Kind == yaml.ScalarNode {
+				latestKeyValue = item.Value
+			} else {
+				rawKeyBytes, err := enc.marshal(item, nodePath)
+				if err != nil {
+					return nil, err
+				}
+				key := bytes.TrimSuffix(rawKeyBytes, newline)
+				latestKeyValue = string(key)
+			}
+			latestKey = latestKeyValue
+
+			// For output purposes, we still need to marshal the key properly
 			rawKeyBytes, err := enc.marshal(item, nodePath)
 			if err != nil {
 				return nil, err
 			}
-
-			// assume the key can be a string (this isn't always true in YAML, but we'll see how far this gets us)
 			key := bytes.TrimSuffix(rawKeyBytes, newline)
-			latestKey = string(key)
 
 			keyBytes := bytes.Join([][]byte{
 				key,
