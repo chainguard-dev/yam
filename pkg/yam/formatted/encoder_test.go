@@ -383,14 +383,14 @@ environment:
 	t.Run("path matching works correctly with key nodes containing comments", func(t *testing.T) {
 		// Test that path matching works when key nodes themselves have comments
 		// This tests the core bug fix where comments in keys broke path construction
-		
+
 		// Create a key node with a comment
 		keyNode := &yaml.Node{
 			Kind:        yaml.ScalarNode,
 			Value:       "runtime",
 			HeadComment: "# This is a comment on the key",
 		}
-		
+
 		// Create the sequence to be sorted
 		sequenceNode := &yaml.Node{
 			Kind: yaml.SequenceNode,
@@ -427,20 +427,20 @@ environment:
 		require.NoError(t, err)
 
 		result := buf.String()
-		
+
 		// Check that sorting happened - alpha should come before zebra
 		require.Contains(t, result, "alpha")
-		require.Contains(t, result, "beta") 
+		require.Contains(t, result, "beta")
 		require.Contains(t, result, "zebra")
-		
+
 		// Ensure the items are in sorted order
 		alphaPos := strings.Index(result, "alpha")
 		betaPos := strings.Index(result, "beta")
 		zebraPos := strings.Index(result, "zebra")
-		
+
 		require.True(t, alphaPos < betaPos, "alpha should come before beta")
 		require.True(t, betaPos < zebraPos, "beta should come before zebra")
-		
+
 		// Ensure the comment is preserved
 		require.Contains(t, result, "# This is a comment on the key")
 	})
