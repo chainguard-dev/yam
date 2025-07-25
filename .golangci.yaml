@@ -235,6 +235,9 @@ linters:
       - text: 'comment on exported \S+ \S+ should be of the form ".+"'
         source: '// ?(nolint|TODO)'
         linters: [ revive, staticcheck ]
+      - text: 'var-naming: avoid meaningless package names'
+        path: 'pkg/util/util\.go'
+        linters: [ revive ]
       - path: '_test\.go'
         linters:
           - bodyclose
