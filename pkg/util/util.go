@@ -1,3 +1,4 @@
+// Package util provides utility functions for the yam YAML formatter.
 package util
 
 import "path/filepath"

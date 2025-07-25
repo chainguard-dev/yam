@@ -2,6 +2,7 @@ package formatted
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/chainguard-dev/yam/pkg/yam/formatted/path"
@@ -286,6 +287,163 @@ func TestDedupAndSortSequence(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSortingWithComments(t *testing.T) {
+	t.Run("sorting works with YAML files containing comments", func(t *testing.T) {
+		// Test YAML content with comment at the beginning and unsorted dependencies
+		yamlContent := `#nolint:some-comment
+package:
+  dependencies:
+    runtime:
+      - z-item
+      - a-item
+      - m-item`
+
+		expectedYaml := `#nolint:some-comment
+package:
+  dependencies:
+    runtime:
+      - a-item
+      - m-item
+      - z-item
+`
+
+		// Parse the YAML
+		root := &yaml.Node{}
+		err := yaml.NewDecoder(strings.NewReader(yamlContent)).Decode(root)
+		require.NoError(t, err)
+
+		// Create encoder with sort expression
+		var buf bytes.Buffer
+		encoder := NewEncoder(&buf)
+		encoder, err = encoder.SetSortExpressions(".package.dependencies.runtime")
+		require.NoError(t, err)
+
+		// Encode and check result
+		err = encoder.Encode(root)
+		require.NoError(t, err)
+
+		checkDiff(t, expectedYaml, buf.String())
+	})
+
+	t.Run("sorting works with complex YAML structure and comments", func(t *testing.T) {
+		// Test with the more realistic structure similar to the original issue
+		yamlContent := `#nolint:valid-pipeline-fetch-digest
+package:
+  name: test-package
+  dependencies:
+    runtime:
+      - curl
+      - ca-certificates
+      - brotli
+      - apache
+environment:
+  contents:
+    packages:
+      - wget
+      - bash
+      - autoconf`
+
+		expectedYaml := `#nolint:valid-pipeline-fetch-digest
+package:
+  name: test-package
+  dependencies:
+    runtime:
+      - apache
+      - brotli
+      - ca-certificates
+      - curl
+environment:
+  contents:
+    packages:
+      - autoconf
+      - bash
+      - wget
+`
+
+		// Parse the YAML
+		root := &yaml.Node{}
+		err := yaml.NewDecoder(strings.NewReader(yamlContent)).Decode(root)
+		require.NoError(t, err)
+
+		// Create encoder with multiple sort expressions
+		var buf bytes.Buffer
+		encoder := NewEncoder(&buf)
+		encoder, err = encoder.SetSortExpressions(".package.dependencies.runtime", ".environment.contents.packages")
+		require.NoError(t, err)
+
+		// Encode and check result
+		err = encoder.Encode(root)
+		require.NoError(t, err)
+
+		checkDiff(t, expectedYaml, buf.String())
+	})
+
+	t.Run("path matching works correctly with key nodes containing comments", func(t *testing.T) {
+		// Test that path matching works when key nodes themselves have comments
+		// This tests the core bug fix where comments in keys broke path construction
+
+		// Create a key node with a comment
+		keyNode := &yaml.Node{
+			Kind:        yaml.ScalarNode,
+			Value:       "runtime",
+			HeadComment: "# This is a comment on the key",
+		}
+
+		// Create the sequence to be sorted
+		sequenceNode := &yaml.Node{
+			Kind: yaml.SequenceNode,
+			Content: []*yaml.Node{
+				{Kind: yaml.ScalarNode, Value: "zebra"},
+				{Kind: yaml.ScalarNode, Value: "alpha"},
+				{Kind: yaml.ScalarNode, Value: "beta"},
+			},
+		}
+
+		// Create a mapping with the commented key
+		mappingNode := &yaml.Node{
+			Kind: yaml.MappingNode,
+			Content: []*yaml.Node{
+				keyNode,
+				sequenceNode,
+			},
+		}
+
+		// Wrap in document
+		root := &yaml.Node{
+			Kind:    yaml.DocumentNode,
+			Content: []*yaml.Node{mappingNode},
+		}
+
+		// Create encoder with sort expression
+		var buf bytes.Buffer
+		encoder := NewEncoder(&buf)
+		encoder, err := encoder.SetSortExpressions(".runtime")
+		require.NoError(t, err)
+
+		// Encode
+		err = encoder.Encode(root)
+		require.NoError(t, err)
+
+		result := buf.String()
+
+		// Check that sorting happened - alpha should come before zebra
+		require.Contains(t, result, "alpha")
+		require.Contains(t, result, "beta")
+		require.Contains(t, result, "zebra")
+
+		// Ensure the items are in sorted order
+		alphaPos := strings.Index(result, "alpha")
+		betaPos := strings.Index(result, "beta")
+		zebraPos := strings.Index(result, "zebra")
+
+		require.True(t, alphaPos < betaPos, "alpha should come before beta")
+		require.True(t, betaPos < zebraPos, "beta should come before zebra")
+
+		// Ensure the comment is preserved
+		require.Contains(t, result, "# This is a comment on the key")
+	})
 }
 
 func TestDedupWithNonScalarNodes(t *testing.T) {
