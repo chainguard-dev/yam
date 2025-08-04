@@ -34,8 +34,7 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: read # to read the repo and tags
-      id-token: write # to inject the OIDC token to octo-sts
+      contents: write # to create and push tags
 
     steps:
       - name: Harden Runner
@@ -43,16 +42,10 @@ jobs:
         with:
           egress-policy: audit
 
-      - uses: octo-sts/action@6177b4481c00308b3839969c3eca88c96a91775f # v1.0.0
-        id: octo-sts
-        with:
-          scope: ${{ github.repository }}
-          identity: release
-
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0 # fetch all history for all tags and branches
-          token: ${{ steps.octo-sts.outputs.token }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check if any changes since last tag
         id: check
@@ -70,10 +63,10 @@ jobs:
         uses: chainguard-dev/actions/git-tag@708219d4822f33611ac1a2653815cc10e1ab54a6 # v1.4.7
         if: steps.check.outputs.bump == 'yes'
         with:
-          token: ${{ steps.octo-sts.outputs.token }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           git_tag_prefix: "v"
           bump_level: ${{ inputs.release_type || 'patch' }}
           dry_run: ${{ inputs.dry_run || 'false'}}
           forced_version: ${{ inputs.forced_version || '' }}
-          author: "octo-sts[bot] <157150467+octo-sts[bot]@users.noreply.github.com>"
-          committer: "octo-sts[bot] <157150467+octo-sts[bot]@users.noreply.github.com>"
+          author: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
+          committer: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
