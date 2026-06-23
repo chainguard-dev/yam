@@ -40,16 +40,21 @@ func ExecDiff(want, got []byte) error {
 		return fmt.Errorf("unable to execute diff command: %w", err)
 	}
 
+	// Diff from "got" (the current file contents) to "want" (the correctly
+	// formatted output) so the printed diff reads in the conventional
+	// direction: removed lines are what's there now, added lines are the fix.
+	// This matches tools like `gofmt -d`, `prettier` and `black --diff`, and
+	// means the output can be applied as a patch to format the file.
 	cmd := exec.Command(
 		command,
 		"-U",
 		"5",
 		"--label",
-		"want",
-		"--label",
 		"got",
-		tempWant.Name(),
+		"--label",
+		"want",
 		tempGot.Name(),
+		tempWant.Name(),
 	)
 	cmd.Stdout = handlerOutput
 	cmd.Stderr = handlerOutput
