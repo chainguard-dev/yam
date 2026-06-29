@@ -280,6 +280,10 @@ func (enc Encoder) marshal(node *yaml.Node, nodePath path.Path) ([]byte, error) 
 		}
 		if enc.matchesAnyQuotePath(nodePath) {
 			node.Style |= yaml.DoubleQuotedStyle
+			// Force numeric values to be treated as strings so they get quoted properly
+			if node.Tag == "!!float" || node.Tag == "!!int" {
+				node.Tag = "!!str"
+			}
 		}
 		return yaml.Marshal(node)
 
