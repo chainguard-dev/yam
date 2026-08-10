@@ -1,0 +1,7 @@
+quotes:
+  version: "5.12"
+  port: "8080"
+  timeout: "30.5"
+  count: "42"
+  enabled: true
+  name: test-service
