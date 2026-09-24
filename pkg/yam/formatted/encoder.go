@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 
@@ -294,8 +295,22 @@ func (enc Encoder) marshalMapping(node *yaml.Node, nodePath path.Path) ([]byte, 
 	var result []byte
 	var latestKey string
 
+	// yaml.v3 can attach a line or foot comment to a key node. Marshaling the
+	// key with its comments and then appending the colon would put the colon
+	// inside the comment, so these comments are pulled off the key and placed
+	// explicitly: the line comment after the colon, and the foot comment after
+	// the key's value, matching where yaml.v3's own encoder emits them.
+	var keyLineComment, keyFootComment string
+
 	for i, item := range node.Content {
 		if isMapKeyIndex(i) {
+			keyLineComment, keyFootComment = item.LineComment, item.FootComment
+			if keyLineComment != "" || keyFootComment != "" {
+				keyCopy := *item
+				keyCopy.LineComment, keyCopy.FootComment = "", ""
+				item = &keyCopy
+			}
+
 			// For path construction, we need just the key value without comments
 			// Use the node's Value directly if it's a scalar, otherwise marshal it
 			var latestKeyValue string
@@ -329,6 +344,11 @@ func (enc Encoder) marshalMapping(node *yaml.Node, nodePath path.Path) ([]byte, 
 					// render in same line
 					keyBytes = append(keyBytes, space...)
 				} else {
+					if keyLineComment != "" {
+						keyBytes = append(keyBytes, space...)
+						keyBytes = append(keyBytes, keyLineComment...)
+						keyLineComment = ""
+					}
 					keyBytes = append(keyBytes, newline...)
 				}
 			} else {
@@ -344,17 +364,17 @@ func (enc Encoder) marshalMapping(node *yaml.Node, nodePath path.Path) ([]byte, 
 
 		nodePathForValue := nodePath.AppendMapPart(latestKey)
 
+		// A key's line comment that wasn't rendered after the colon belongs to
+		// a value on the same line, so it goes at the end of the value.
+		if keyLineComment != "" {
+			valueCopy := *item
+			valueCopy.LineComment = strings.Join(slices.DeleteFunc([]string{item.LineComment, keyLineComment}, func(s string) bool { return s == "" }), " ")
+			item = &valueCopy
+		}
+
 		valueBytes, err := enc.marshal(item, nodePathForValue)
 		if err != nil {
 			return nil, err
-		}
-
-		isFinalMapValue := i == len(node.Content)-1
-
-		// This was the key's value node, so add a gap if configured to do so.
-		// We shouldn't add a newline after the final map value, though.
-		if enc.matchesAnyGapPath(nodePath) && !isFinalMapValue {
-			valueBytes = append(valueBytes, newline...)
 		}
 
 		if item.Style != yaml.FlowStyle && (item.Kind == yaml.MappingNode || item.Kind == yaml.SequenceNode) {
@@ -364,6 +384,18 @@ func (enc Encoder) marshalMapping(node *yaml.Node, nodePath path.Path) ([]byte, 
 		}
 
 		if item.Style == yaml.FlowStyle && node.Style != yaml.FlowStyle {
+			valueBytes = append(valueBytes, newline...)
+		}
+
+		if keyFootComment != "" {
+			valueBytes = append(valueBytes, keyFootComment...)
+			valueBytes = append(valueBytes, newline...)
+		}
+
+		// This was the key's value node, so add a gap if configured to do so.
+		// We shouldn't add a newline after the final map value, though.
+		isFinalMapValue := i == len(node.Content)-1
+		if enc.matchesAnyGapPath(nodePath) && !isFinalMapValue {
 			valueBytes = append(valueBytes, newline...)
 		}
 
