@@ -525,6 +525,132 @@ func TestMarshalMappingWithMissingValue(t *testing.T) {
 	}
 }
 
+// TestKeyComments covers comments that yaml.v3 attaches to a mapping key node
+// as a line or foot comment. Rendering them together with the key used to put
+// the colon inside the comment, producing invalid YAML (e.g. "- runs\n  # c: |")
+// or YAML that silently parsed to different data.
+func TestKeyComments(t *testing.T) {
+	tests := []struct {
+		name  string
+		gaps  []string
+		input string
+		want  string
+	}{{
+		// Seen in melange configs formatted after a renovate bump.
+		name: "comment block before a sequence item after a nested mapping",
+		gaps: []string{".", ".pipeline"},
+		input: `pipeline:
+  - uses: git-checkout
+    with:
+      expected-commit: abc
+  # head comment
+
+  - runs: |
+      echo hi
+`,
+		want: `pipeline:
+  - uses: git-checkout
+    with:
+      expected-commit: abc
+
+  - runs: |
+      echo hi
+    # head comment
+`,
+	}, {
+		name: "comment after the last item's scalar value",
+		gaps: []string{".pipeline"},
+		input: `pipeline:
+  - runs: |
+      hi
+  # c
+
+  - uses: y
+`,
+		want: `pipeline:
+  - runs: |
+      hi
+
+  - uses: y
+    # c
+`,
+	}, {
+		name: "comment after a nested mapping inside a mapping",
+		input: `a:
+  b:
+    x: 1
+  # c
+
+  d: 2
+`,
+		want: `a:
+  b:
+    x: 1
+  # c
+  d: 2
+`,
+	}, {
+		name: "comment after a nested mapping at the top level",
+		gaps: []string{"."},
+		input: `a:
+  x: 1
+# c
+
+d: 2
+`,
+		want: `a:
+  x: 1
+# c
+
+d: 2
+`,
+	}, {
+		name: "comment between keys of a sequence item",
+		input: `pipeline:
+  - with:
+      x: 1
+    # c
+
+    uses: y
+`,
+		want: `pipeline:
+  - with:
+      x: 1
+    # c
+    uses: y
+`,
+	}, {
+		name: "line comment on a key with a block value",
+		input: `a: # c
+  x: 1
+`,
+		want: `a: # c
+  x: 1
+`,
+	}}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := &yaml.Node{}
+			require.NoError(t, yaml.Unmarshal([]byte(tt.input), root))
+
+			var buf bytes.Buffer
+			enc, err := NewEncoder(&buf).SetGapExpressions(tt.gaps...)
+			require.NoError(t, err)
+			require.NoError(t, enc.Encode(root))
+
+			checkDiff(t, tt.want, buf.String())
+
+			var want, got any
+			require.NoError(t, yaml.Unmarshal([]byte(tt.input), &want))
+			require.NoError(t, yaml.Unmarshal(buf.Bytes(), &got), "formatted output must parse")
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("formatted output decodes to different data (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func checkDiff(t *testing.T, expected, actual any) {
 	t.Helper()
 
