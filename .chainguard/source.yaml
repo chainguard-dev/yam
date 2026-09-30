@@ -5,9 +5,17 @@ spec:
   authorities:
     - keyless:
         url: https://fulcio.sigstore.dev
+        identities:
+          # Chainguard staff signing with gitsign via Google.
+          - subjectRegExp: .+@chainguard\.dev$
+            issuer: https://accounts.google.com
+          # External contributors signing with gitsign via GitHub.
+          - issuer: https://github.com/login/oauth
       ctlog:
         url: https://rekor.sigstore.dev
     - key:
         # Allow commits signed by GitHub.
         kms: https://github.com/web-flow.gpg
-
+  # Allow GitHub-verified GPG, SSH, and S/MIME signatures.
+  github:
+    verified: true
