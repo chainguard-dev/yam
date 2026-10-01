@@ -667,3 +667,226 @@ full actual:
 %s`, diff, expected, actual)
 	}
 }
+
+func TestQuoteScalars(t *testing.T) {
+	tests := []struct {
+		name  string
+		quote []string
+		input string
+		want  string
+		wantV any // the decoded value of "v" in the formatted output
+	}{{
+		name:  "float is quoted as a string",
+		quote: []string{".v"},
+		input: "v: 5.12\n",
+		want:  "v: \"5.12\"\n",
+		wantV: "5.12",
+	}, {
+		name:  "int is quoted as a string",
+		quote: []string{".v"},
+		input: "v: 42\n",
+		want:  "v: \"42\"\n",
+		wantV: "42",
+	}, {
+		name:  "hex int keeps its original text",
+		quote: []string{".v"},
+		input: "v: 0x1F\n",
+		want:  "v: \"0x1F\"\n",
+		wantV: "0x1F",
+	}, {
+		name:  "octal int keeps its original text",
+		quote: []string{".v"},
+		input: "v: 0o17\n",
+		want:  "v: \"0o17\"\n",
+		wantV: "0o17",
+	}, {
+		name:  "infinity is quoted",
+		quote: []string{".v"},
+		input: "v: .inf\n",
+		want:  "v: \".inf\"\n",
+		wantV: ".inf",
+	}, {
+		name:  "NaN is quoted",
+		quote: []string{".v"},
+		input: "v: .NaN\n",
+		want:  "v: \".NaN\"\n",
+		wantV: ".NaN",
+	}, {
+		name:  "exponent float keeps its original text",
+		quote: []string{".v"},
+		input: "v: 1e3\n",
+		want:  "v: \"1e3\"\n",
+		wantV: "1e3",
+	}, {
+		name:  "underscore-separated int keeps its original text",
+		quote: []string{".v"},
+		input: "v: 1_000\n",
+		want:  "v: \"1_000\"\n",
+		wantV: "1_000",
+	}, {
+		name:  "bool is quoted as a string",
+		quote: []string{".v"},
+		input: "v: true\n",
+		want:  "v: \"true\"\n",
+		wantV: "true",
+	}, {
+		name:  "plain string is quoted",
+		quote: []string{".v"},
+		input: "v: hello\n",
+		want:  "v: \"hello\"\n",
+		wantV: "hello",
+	}, {
+		// yaml.v3 already reads yes as a string, but YAML 1.1 consumers read
+		// it as a bool, so it still needs quoting.
+		name:  "YAML 1.1 bool word is quoted",
+		quote: []string{".v"},
+		input: "v: yes\n",
+		want:  "v: \"yes\"\n",
+		wantV: "yes",
+	}, {
+		name:  "timestamp is quoted as a string",
+		quote: []string{".v"},
+		input: "v: 2024-01-01\n",
+		want:  "v: \"2024-01-01\"\n",
+		wantV: "2024-01-01",
+	}, {
+		name:  "single-quoted string becomes double-quoted",
+		quote: []string{".v"},
+		input: "v: '5.12'\n",
+		want:  "v: \"5.12\"\n",
+		wantV: "5.12",
+	}, {
+		name:  "already double-quoted value is unchanged",
+		quote: []string{".v"},
+		input: "v: \"5.12\"\n",
+		want:  "v: \"5.12\"\n",
+		wantV: "5.12",
+	}, {
+		name:  "line comment on a quoted value is kept",
+		quote: []string{".v"},
+		input: "v: 5.12 # keep\n",
+		want:  "v: \"5.12\" # keep\n",
+		wantV: "5.12",
+	}, {
+		name:  "null on a quote path stays null",
+		quote: []string{".v"},
+		input: "v: ~\nw: 1\n",
+		want:  "v:\nw: 1\n",
+		wantV: nil,
+	}, {
+		name:  "anchored scalar keeps its anchor",
+		quote: []string{".v"},
+		input: "v: &a 1.5\n",
+		want:  "v: &a \"1.5\"\n",
+		wantV: "1.5",
+	}, {
+		// Pinned on purpose: quoting a block scalar flattens it to one escaped
+		// line. Change this row deliberately if that behavior changes.
+		name:  "block literal becomes a double-quoted string",
+		quote: []string{".v"},
+		input: "v: |\n  5.12\n",
+		want:  "v: \"5.12\\n\"\n",
+		wantV: "5.12\n",
+	}, {
+		name:  "any-index path quotes every sequence item",
+		quote: []string{".v[]"},
+		input: "v:\n  - 1.0\n  - 2\n",
+		want:  "v:\n  - \"1.0\"\n  - \"2\"\n",
+		wantV: []any{"1.0", "2"},
+	}, {
+		name:  "specific-index path quotes only that sequence item",
+		quote: []string{".v[1]"},
+		input: "v:\n  - 1.0\n  - 2\n",
+		want:  "v:\n  - 1.0\n  - \"2\"\n",
+		wantV: []any{1.0, "2"},
+	}, {
+		// Quoting must not override a type the author spelled out.
+		name:  "explicit float tag is kept",
+		quote: []string{".v"},
+		input: "v: !!float 5.12\n",
+		want:  "v: !!float \"5.12\"\n",
+		wantV: 5.12,
+	}, {
+		name:  "explicit int tag is kept",
+		quote: []string{".v"},
+		input: "v: !!int 42\n",
+		want:  "v: !!int \"42\"\n",
+		wantV: 42,
+	}, {
+		name:  "explicit bool tag is kept",
+		quote: []string{".v"},
+		input: "v: !!bool true\n",
+		want:  "v: !!bool \"true\"\n",
+		wantV: true,
+	}, {
+		name:  "explicit str tag is kept",
+		quote: []string{".v"},
+		input: "v: !!str 5.12\n",
+		want:  "v: !!str \"5.12\"\n",
+		wantV: "5.12",
+	}, {
+		name:  "every quote expression is applied",
+		quote: []string{".a", ".v"},
+		input: "a: 1\nv: 2\n",
+		want:  "a: \"1\"\nv: \"2\"\n",
+		wantV: "2",
+	}, {
+		name:  "non-matching path leaves the value unquoted",
+		quote: []string{".other"},
+		input: "v: 5.12\n",
+		want:  "v: 5.12\n",
+		wantV: 5.12,
+	}, {
+		// The repro in #100 used a same-depth path with a different parent.
+		name:  "same-depth path under a different parent leaves the value unquoted",
+		quote: []string{".other.x"},
+		input: "v:\n  x: 5.12\n",
+		want:  "v:\n  x: 5.12\n",
+		wantV: map[string]any{"x": 5.12},
+	}, {
+		name:  "deeper path leaves a top-level value unquoted",
+		quote: []string{".package.v"},
+		input: "v: 5.12\n",
+		want:  "v: 5.12\n",
+		wantV: 5.12,
+	}, {
+		name:  "path to a sequence does not quote its items",
+		quote: []string{".v"},
+		input: "v:\n  - 1.0\n",
+		want:  "v:\n  - 1.0\n",
+		wantV: []any{1.0},
+	}}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			format := func(input string) string {
+				t.Helper()
+				root := &yaml.Node{}
+				require.NoError(t, yaml.Unmarshal([]byte(input), root))
+
+				var buf bytes.Buffer
+				enc, err := NewEncoder(&buf).SetQuoteExpressions(tt.quote...)
+				require.NoError(t, err)
+				require.NoError(t, enc.Encode(root))
+				return buf.String()
+			}
+
+			out := format(tt.input)
+			checkDiff(t, tt.want, out)
+
+			if again := format(out); again != out {
+				t.Errorf("quote %v: formatting again changed the output:\nfirst:  %q\nsecond: %q", tt.quote, out, again)
+			}
+
+			var got map[string]any
+			require.NoError(t, yaml.Unmarshal([]byte(out), &got), "formatted output must parse:\n%s", out)
+			v, ok := got["v"]
+			if !ok {
+				t.Fatalf("quote %v on %q: key v missing from output %q", tt.quote, tt.input, out)
+			}
+			if diff := cmp.Diff(tt.wantV, v); diff != "" {
+				t.Errorf("quote %v on %q: decoded value changed (-want +got):\n%s", tt.quote, tt.input, diff)
+			}
+		})
+	}
+}
