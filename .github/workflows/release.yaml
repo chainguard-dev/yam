@@ -68,17 +68,8 @@ jobs:
           fi
 
       - name: Bump and push Git tag
-        uses: chainguard-dev/actions/git-tag@805da2efdffdc42b8afd8880e575a48b471ef544 # v1.6.37
+        uses: chainguard-dev/actions/git-tag@0a46f704c0232e638d9189d9e9aac01e41f6f420 # v1.6.38
         if: steps.check.outputs.bump == 'yes'
-        env:
-          # The checkout above uses persist-credentials: false, and git-tag pushes
-          # with a bare `git push origin` instead of using its token input, so every
-          # run since 2026-07-06 has failed with "could not read Username". Hand git
-          # the octo-sts token for this step's processes only: GIT_CONFIG_* applies
-          # like `git -c` and nothing is written to .git/config.
-          GIT_CONFIG_COUNT: "1"
-          GIT_CONFIG_KEY_0: url.https://x-access-token:${{ steps.octo-sts.outputs.token }}@github.com/.insteadOf
-          GIT_CONFIG_VALUE_0: https://github.com/
         with:
           token: ${{ steps.octo-sts.outputs.token }}
           git_tag_prefix: "v"
