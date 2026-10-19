@@ -114,7 +114,7 @@ func computeFormatOptions(cfg *formatted.EncodeOptions, cmd *cobra.Command) yam.
 	var indent = 2
 	if flag := flags.Lookup(flagIndent); flag.Changed {
 		indent, _ = flags.GetInt(flagIndent)
-	} else if cfg != nil {
+	} else if cfg != nil && cfg.Indent != 0 {
 		indent = cfg.Indent
 	}
 
