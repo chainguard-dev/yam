@@ -158,3 +158,9 @@ You can also tell the encoder to behave similarly to the `yam` command, in that 
 ```go
 enc := formatted.NewEncoder(w).AutomaticConfig()
 ```
+
+`AutomaticConfig` reads the `.yam.yaml` in the current working directory. To format a file with the config of the directory tree it lives in, pass the file's path to `UseConfigFor`. It uses the `.yam.yaml` in the file's own directory, or the nearest one in a parent directory, and falls back to `AutomaticConfig` when there is none. A tool that edits files in a checkout of another repository, such as `melange bump`, gets that repository's formatting this way.
+
+```go
+enc, err := formatted.NewEncoder(w).UseConfigFor("path/to/file.yaml")
+```

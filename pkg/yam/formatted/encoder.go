@@ -3,9 +3,12 @@ package formatted
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -94,6 +97,28 @@ func (enc Encoder) AutomaticConfig() Encoder {
 	return enc
 }
 
+// UseConfigFor configures the encoder for writing the YAML file at path, using
+// the `.yam.yaml` config file nearest to it (see FindConfig). This is the right
+// choice for tools that write a file from a different working directory, such
+// as a bot that edits a checkout of another repository: the file gets the
+// formatting of the repository it lives in.
+//
+// When no config file exists in the file's directory or any parent, the
+// encoder falls back to AutomaticConfig, so a config in the current working
+// directory still applies as before. A config file that can't be read or
+// parsed is an error.
+func (enc Encoder) UseConfigFor(path string) (Encoder, error) {
+	options, err := ReadConfigFor(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return enc.AutomaticConfig(), nil
+	}
+	if err != nil {
+		return Encoder{}, err
+	}
+
+	return enc.UseOptions(*options)
+}
+
 // ReadConfig tries to load a yam encoder config from a `.yam.yaml` file in the
 // current working directory. It returns an error if it wasn't able to open or
 // unmarshal the file.
@@ -122,6 +147,64 @@ func ReadConfigFrom(r io.Reader) (*EncodeOptions, error) {
 	}
 
 	return &options, nil
+}
+
+// FindConfig returns the path of the `.yam.yaml` config file that applies to
+// the YAML file at path: the one in the file's own directory if it exists,
+// otherwise the nearest one in a parent directory. If path is a directory,
+// the search starts there. The file at path doesn't have to exist yet.
+//
+// When no config file is found, the returned error satisfies
+// errors.Is(err, fs.ErrNotExist).
+func FindConfig(path string) (string, error) {
+	dir, err := filepath.Abs(path)
+	if err != nil {
+		return "", fmt.Errorf("resolving %q: %w", path, err)
+	}
+	if info, statErr := os.Stat(dir); statErr != nil || !info.IsDir() {
+		dir = filepath.Dir(dir)
+	}
+
+	for {
+		candidate := filepath.Join(dir, util.ConfigFileName)
+		_, statErr := os.Stat(candidate)
+		if statErr == nil {
+			return candidate, nil
+		}
+		if !errors.Is(statErr, fs.ErrNotExist) {
+			return "", fmt.Errorf("looking for yam config %q: %w", candidate, statErr)
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", fmt.Errorf("no %s found for %q: %w", util.ConfigFileName, path, fs.ErrNotExist)
+		}
+		dir = parent
+	}
+}
+
+// ReadConfigFor loads the yam encoder config that applies to the YAML file at
+// path, as located by FindConfig. It returns an error if no config file was
+// found (satisfying errors.Is(err, fs.ErrNotExist)), or if the config file
+// couldn't be opened or unmarshaled.
+func ReadConfigFor(path string) (*EncodeOptions, error) {
+	configPath, err := FindConfig(path)
+	if err != nil {
+		return nil, err
+	}
+
+	f, err := os.Open(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("unable to open yam config: %w", err)
+	}
+	defer f.Close()
+
+	config, err := ReadConfigFrom(f)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", configPath, err)
+	}
+
+	return config, nil
 }
 
 // SetIndent configures the encoder to use the provided number of spaces for
