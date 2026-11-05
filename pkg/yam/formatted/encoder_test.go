@@ -528,7 +528,9 @@ func TestMarshalMappingWithMissingValue(t *testing.T) {
 // TestKeyComments covers comments that yaml.v3 attaches to a mapping key node
 // as a line or foot comment. Rendering them together with the key used to put
 // the colon inside the comment, producing invalid YAML (e.g. "- runs\n  # c: |")
-// or YAML that silently parsed to different data.
+// or YAML that silently parsed to different data. A foot comment on the first
+// key of a sequence item that was written above the item goes back above it;
+// TestSequenceItemFootComments has the full set of those cases.
 func TestKeyComments(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -553,9 +555,10 @@ func TestKeyComments(t *testing.T) {
     with:
       expected-commit: abc
 
+  # head comment
+
   - runs: |
       echo hi
-    # head comment
 `,
 	}, {
 		name: "comment after the last item's scalar value",
@@ -571,8 +574,9 @@ func TestKeyComments(t *testing.T) {
   - runs: |
       hi
 
+  # c
+
   - uses: y
-    # c
 `,
 	}, {
 		name: "comment after a nested mapping inside a mapping",
@@ -649,6 +653,336 @@ d: 2
 			}
 		})
 	}
+}
+
+// TestSequenceItemFootComments covers the foot comment yaml.v3 puts on the
+// first key of a block sequence item. A comment written above the item and
+// followed by an empty line lands there, and so does a comment that follows
+// the first key's value. The encoder tells them apart by the source positions
+// and only moves the first kind back above the item. Every row is checked for
+// the exact output, for formatting a second time giving the same output, and
+// for decoding to the same data as the input.
+func TestSequenceItemFootComments(t *testing.T) {
+	tests := []struct {
+		name  string
+		gaps  []string
+		input string
+		want  string // empty means the output must equal the input
+	}{{
+		name: "comment above a later item is kept above it",
+		input: `pipeline:
+  - uses: a
+  # c
+
+  - uses: b
+`,
+	}, {
+		name: "comment above a later item with gaps",
+		gaps: []string{".pipeline"},
+		input: `pipeline:
+  - uses: a
+  # c
+
+  - uses: b
+`,
+		want: `pipeline:
+  - uses: a
+
+  # c
+
+  - uses: b
+`,
+	}, {
+		name: "multi-line comment above a later item",
+		input: `pipeline:
+  - uses: a
+  # c1
+  # c2
+
+  - uses: b
+`,
+	}, {
+		// yaml.v3 splits this into a foot comment "# b1" on the first key
+		// and a head comment "# b2" on the item.
+		name: "two comment blocks above a later item",
+		input: `pipeline:
+  - uses: a
+  # b1
+
+  # b2
+  - uses: b
+`,
+	}, {
+		name: "comment above a later item after a block scalar",
+		input: `pipeline:
+  - runs: |
+      a
+      b
+  # c
+
+  - uses: y
+`,
+	}, {
+		name: "comment above a later item after a block scalar that strips its final newline",
+		input: `pipeline:
+  - runs: |-
+      a
+      b
+  # c
+
+  - uses: y
+`,
+	}, {
+		name: "comment above a later item after a block scalar that keeps trailing newlines",
+		input: `pipeline:
+  - runs: |+
+      a
+
+  # c
+
+  - uses: y
+`,
+	}, {
+		name: "comment above a later item whose second key has a head comment",
+		input: `pipeline:
+  - uses: a
+  # c
+
+  - uses: b
+    # d1
+    # d2
+    with: w
+`,
+	}, {
+		// "# after a" is the foot comment of the previous item's last key and
+		// takes up a line after that item.
+		name: "comment above a later item whose previous item ends with a foot comment",
+		input: `pipeline:
+  - uses: a
+    with: w
+    # after a
+  # c
+
+  - uses: b
+`,
+	}, {
+		name: "comment above a later item whose previous item ends with a foot comment, with gaps",
+		gaps: []string{".pipeline"},
+		input: `pipeline:
+  - uses: a
+    with: w
+    # after a
+  # c
+
+  - uses: b
+`,
+		want: `pipeline:
+  - uses: a
+    with: w
+    # after a
+
+  # c
+
+  - uses: b
+`,
+	}, {
+		name: "comment above a later item in a top-level sequence",
+		input: `- uses: a
+# c
+
+- uses: b
+`,
+	}, {
+		name: "comment above a later item in a nested sequence",
+		input: `x:
+  - - a: 1
+    # c
+
+    - b: 2
+`,
+	}, {
+		name: "comment above the last item followed by another key",
+		gaps: []string{".", ".pipeline"},
+		input: `pipeline:
+  - uses: a
+  # c
+
+  - uses: b
+
+update: true
+`,
+		want: `pipeline:
+  - uses: a
+
+  # c
+
+  - uses: b
+
+update: true
+`,
+	}, {
+		// The comment follows the only key's value, so it stays after the item.
+		name: "comment after a single-key item stays after it",
+		gaps: []string{".pipeline"},
+		input: `pipeline:
+  - runs: |
+      hi
+    # c
+
+  - uses: y
+`,
+	}, {
+		name: "comment after the last single-key item stays after it",
+		gaps: []string{"."},
+		input: `pipeline:
+  - uses: a
+  - uses: b
+    # c
+
+update: true
+`,
+	}, {
+		// The comment follows the first key's value; the empty line after it
+		// is dropped, as for any comment between two keys.
+		name: "comment between the first and second key of a later item stays there",
+		gaps: []string{".pipeline"},
+		input: `pipeline:
+  - uses: a
+
+  - uses: x
+    # c
+
+    with: y
+`,
+		want: `pipeline:
+  - uses: a
+
+  - uses: x
+    # c
+    with: y
+`,
+	}, {
+		name: "comment between the first and second key of a later item after a block value stays there",
+		input: `pipeline:
+  - uses: a
+  - with:
+      x: 1
+    # c
+
+    uses: y
+`,
+		want: `pipeline:
+  - uses: a
+  - with:
+      x: 1
+    # c
+    uses: y
+`,
+	}, {
+		// Two empty lines above the item leave room for the comment there as
+		// well, so the position is ambiguous and the comment stays where
+		// yaml.v3 put it.
+		name: "ambiguous comment stays where yaml.v3 put it",
+		input: `pipeline:
+  - uses: a
+
+
+  - uses: x
+    # c
+
+    with: y
+`,
+		want: `pipeline:
+  - uses: a
+  - uses: x
+    # c
+    with: y
+`,
+	}, {
+		name: "comment above the first item is unchanged",
+		input: `pipeline:
+  # c
+
+  - uses: a
+`,
+	}, {
+		name: "comment above an item with an empty line on both sides is unchanged",
+		gaps: []string{".pipeline"},
+		input: `pipeline:
+  - uses: a
+
+  # c
+
+  - uses: b
+`,
+	}, {
+		name: "comment above a later scalar item is unchanged",
+		input: `x:
+  - a
+  # c
+  - b
+`,
+	}}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			format := func(input string) string {
+				t.Helper()
+				root := &yaml.Node{}
+				require.NoError(t, yaml.Unmarshal([]byte(input), root))
+
+				var buf bytes.Buffer
+				enc, err := NewEncoder(&buf).SetGapExpressions(tt.gaps...)
+				require.NoError(t, err)
+				require.NoError(t, enc.Encode(root))
+				return buf.String()
+			}
+
+			want := tt.want
+			if want == "" {
+				want = tt.input
+			}
+
+			out := format(tt.input)
+			checkDiff(t, want, out)
+
+			if again := format(out); again != out {
+				t.Errorf("formatting again changed the output:\nfirst:\n%s\nsecond:\n%s", out, again)
+			}
+
+			var wantData, gotData any
+			require.NoError(t, yaml.Unmarshal([]byte(tt.input), &wantData))
+			require.NoError(t, yaml.Unmarshal([]byte(out), &gotData), "formatted output must parse:\n%s", out)
+			if diff := cmp.Diff(wantData, gotData); diff != "" {
+				t.Errorf("formatted output decodes to different data (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+// TestSequenceItemFootCommentsWithoutPositions checks that nodes built in code,
+// which carry no line numbers, keep the foot comment where yaml.v3's own
+// encoder would put it, and that the input node is left untouched.
+func TestSequenceItemFootCommentsWithoutPositions(t *testing.T) {
+	first := &yaml.Node{Kind: yaml.ScalarNode, Value: "b", FootComment: "# c"}
+	node := &yaml.Node{
+		Kind: yaml.SequenceNode,
+		Content: []*yaml.Node{
+			{Kind: yaml.MappingNode, Content: []*yaml.Node{
+				{Kind: yaml.ScalarNode, Value: "a"},
+				{Kind: yaml.ScalarNode, Value: "1"},
+			}},
+			{Kind: yaml.MappingNode, Content: []*yaml.Node{
+				first,
+				{Kind: yaml.ScalarNode, Value: "2"},
+			}},
+		},
+	}
+
+	var buf bytes.Buffer
+	require.NoError(t, NewEncoder(&buf).Encode(node))
+	checkDiff(t, "- a: 1\n- b: 2\n  # c\n", buf.String())
+	assert.Equal(t, "# c", first.FootComment, "input node must not be modified")
 }
 
 func checkDiff(t *testing.T, expected, actual any) {
