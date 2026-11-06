@@ -89,7 +89,7 @@ supported.
 
 ### Using a config file
 
-Yam will also look for a `.yam.yaml` file in the current working directory as a source of configuration. Using a config file is optional. CLI flag values take priority over config file values. The config file can be used to configure `indent` and `gap` values only.
+Yam will also look for a `.yam.yaml` file in the current working directory as a source of configuration. Using a config file is optional. CLI flag values take priority over config file values. The config file accepts the same options as the CLI flags: `indent`, `gap`, `sort`, `quote` and `dedup`. When `indent` is omitted, the default of 2 applies.
 
 Example `.yam.yaml`:
 

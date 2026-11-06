@@ -28,7 +28,8 @@ const defaultIndentSize = 2
 // EncodeOptions describes the set of configuration options used to adjust the
 // behavior of yam's YAML encoder.
 type EncodeOptions struct {
-	// Indent specifies how many spaces to use per-indentation
+	// Indent specifies how many spaces to use per-indentation. Zero means the
+	// default of 2.
 	Indent int `yaml:"indent"`
 
 	// GapExpressions specifies a list of yq-style paths for which the path's YAML
@@ -85,7 +86,11 @@ func (enc Encoder) AutomaticConfig() Encoder {
 		return enc
 	}
 
-	enc = enc.SetIndent(options.Indent)
+	// A config file that omits indent decodes to 0, which must not flatten the
+	// output; keep the default instead.
+	if options.Indent != 0 {
+		enc = enc.SetIndent(options.Indent)
+	}
 	enc, _ = enc.SetGapExpressions(options.GapExpressions...)
 	enc, _ = enc.SetSortExpressions(options.SortExpressions...)
 	enc, _ = enc.SetQuoteExpressions(options.QuoteExpressions...)
@@ -197,7 +202,9 @@ func (enc Encoder) SetDedupExpressions(expressions ...string) (Encoder, error) {
 // UseOptions configures the encoder to use the configuration from the given
 // EncodeOptions.
 func (enc Encoder) UseOptions(options EncodeOptions) (Encoder, error) {
-	enc = enc.SetIndent(options.Indent)
+	if options.Indent != 0 {
+		enc = enc.SetIndent(options.Indent)
+	}
 	enc, err := enc.SetGapExpressions(options.GapExpressions...)
 	if err != nil {
 		return Encoder{}, err
