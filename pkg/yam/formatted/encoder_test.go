@@ -2,6 +2,9 @@ package formatted
 
 import (
 	"bytes"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -889,4 +892,180 @@ func TestQuoteScalars(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestConfigFor covers FindConfig, ReadConfigFor and UseConfigFor, which pick
+// the `.yam.yaml` nearest to the file being written instead of the one in the
+// current working directory.
+func TestConfigFor(t *testing.T) {
+	const (
+		input       = "a:\n  x: 1\n  y: 2\nb: 2\n"
+		gapRoot     = "indent: 2\ngap:\n  - .\n"
+		gapA        = "indent: 2\ngap:\n  - .a\n"
+		wantGapRoot = "a:\n  x: 1\n  y: 2\n\nb: 2\n"
+		wantGapA    = "a:\n  x: 1\n\n  y: 2\nb: 2\n"
+	)
+
+	// write creates rel (and its parents) under dir and returns its path.
+	write := func(t *testing.T, dir, rel, content string) string {
+		t.Helper()
+		p := filepath.Join(dir, rel)
+		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o750))
+		require.NoError(t, os.WriteFile(p, []byte(content), 0o600))
+		return p
+	}
+
+	// encode formats input with enc and returns the result.
+	encode := func(t *testing.T, enc Encoder, buf *bytes.Buffer) string {
+		t.Helper()
+		root := &yaml.Node{}
+		require.NoError(t, yaml.Unmarshal([]byte(input), root))
+		require.NoError(t, enc.Encode(root))
+		return buf.String()
+	}
+
+	// The lookup walks up to the filesystem root, so a stray config above the
+	// temp dir would change the "no config" results. Skip those cases then.
+	if found, err := FindConfig(t.TempDir()); err == nil {
+		t.Skipf("a %s exists above the temp dir and would be found: %s", ".yam.yaml", found)
+	}
+
+	t.Run("config next to the file", func(t *testing.T) {
+		dir := t.TempDir()
+		want := write(t, dir, "sub/.yam.yaml", gapA)
+		file := write(t, dir, "sub/file.yaml", input)
+
+		got, err := FindConfig(file)
+		require.NoError(t, err)
+		assert.Equal(t, want, got)
+
+		opts, err := ReadConfigFor(file)
+		require.NoError(t, err)
+		assert.Equal(t, []string{".a"}, opts.GapExpressions)
+	})
+
+	t.Run("config in a parent directory", func(t *testing.T) {
+		dir := t.TempDir()
+		want := write(t, dir, ".yam.yaml", gapRoot)
+		file := write(t, dir, "a/b/file.yaml", input)
+
+		got, err := FindConfig(file)
+		require.NoError(t, err)
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("nearest config wins", func(t *testing.T) {
+		dir := t.TempDir()
+		write(t, dir, ".yam.yaml", gapRoot)
+		want := write(t, dir, "a/.yam.yaml", gapA)
+		file := write(t, dir, "a/b/file.yaml", input)
+
+		got, err := FindConfig(file)
+		require.NoError(t, err)
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("file that does not exist yet uses its directory", func(t *testing.T) {
+		dir := t.TempDir()
+		want := write(t, dir, ".yam.yaml", gapRoot)
+
+		got, err := FindConfig(filepath.Join(dir, "new", "file.yaml"))
+		require.NoError(t, err)
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("directory path starts the search there", func(t *testing.T) {
+		dir := t.TempDir()
+		write(t, dir, ".yam.yaml", gapRoot)
+		want := write(t, dir, "sub/.yam.yaml", gapA)
+
+		got, err := FindConfig(filepath.Join(dir, "sub"))
+		require.NoError(t, err)
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("relative path is resolved against the working directory", func(t *testing.T) {
+		dir := t.TempDir()
+		want := write(t, dir, ".yam.yaml", gapRoot)
+		write(t, dir, "sub/file.yaml", input)
+		t.Chdir(dir)
+
+		got, err := FindConfig(filepath.Join("sub", "file.yaml"))
+		require.NoError(t, err)
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("no config reports fs.ErrNotExist", func(t *testing.T) {
+		dir := t.TempDir()
+		file := write(t, dir, "a/file.yaml", input)
+
+		_, err := FindConfig(file)
+		require.ErrorIs(t, err, fs.ErrNotExist)
+		_, err = ReadConfigFor(file)
+		require.ErrorIs(t, err, fs.ErrNotExist)
+	})
+
+	t.Run("malformed config is an error naming the file", func(t *testing.T) {
+		dir := t.TempDir()
+		config := write(t, dir, ".yam.yaml", "gap: [\n")
+		file := write(t, dir, "a/file.yaml", input)
+
+		_, err := ReadConfigFor(file)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), config)
+
+		_, err = NewEncoder(new(bytes.Buffer)).UseConfigFor(file)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), config)
+	})
+
+	t.Run("UseConfigFor applies the nearest config", func(t *testing.T) {
+		dir := t.TempDir()
+		write(t, dir, ".yam.yaml", gapRoot)
+		write(t, dir, "a/.yam.yaml", gapA)
+		file := write(t, dir, "a/b/file.yaml", input)
+
+		var buf bytes.Buffer
+		enc, err := NewEncoder(&buf).UseConfigFor(file)
+		require.NoError(t, err)
+		checkDiff(t, wantGapA, encode(t, enc, &buf))
+	})
+
+	t.Run("UseConfigFor ignores the working directory when the file has a config", func(t *testing.T) {
+		dir := t.TempDir()
+		write(t, dir, "repo/.yam.yaml", gapA)
+		file := write(t, dir, "repo/file.yaml", input)
+		cwd := t.TempDir()
+		write(t, cwd, ".yam.yaml", gapRoot)
+		t.Chdir(cwd)
+
+		var buf bytes.Buffer
+		enc, err := NewEncoder(&buf).UseConfigFor(file)
+		require.NoError(t, err)
+		checkDiff(t, wantGapA, encode(t, enc, &buf))
+	})
+
+	t.Run("UseConfigFor falls back to the working directory config", func(t *testing.T) {
+		dir := t.TempDir()
+		file := write(t, dir, "a/file.yaml", input)
+		cwd := t.TempDir()
+		write(t, cwd, ".yam.yaml", gapRoot)
+		t.Chdir(cwd)
+
+		var buf bytes.Buffer
+		enc, err := NewEncoder(&buf).UseConfigFor(file)
+		require.NoError(t, err)
+		checkDiff(t, wantGapRoot, encode(t, enc, &buf))
+	})
+
+	t.Run("UseConfigFor without any config keeps the defaults", func(t *testing.T) {
+		dir := t.TempDir()
+		file := write(t, dir, "a/file.yaml", input)
+		t.Chdir(t.TempDir())
+
+		var buf bytes.Buffer
+		enc, err := NewEncoder(&buf).UseConfigFor(file)
+		require.NoError(t, err)
+		checkDiff(t, input, encode(t, enc, &buf))
+	})
 }
