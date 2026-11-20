@@ -451,6 +451,14 @@ func (enc Encoder) marshalSequence(node *yaml.Node, nodePath path.Path) ([]byte,
 			item.HeadComment = ""
 		}
 
+		// A comment written above a mapping item and followed by an empty line
+		// arrives as the foot comment of the item's first key. Put it back
+		// above the item, with its empty line, instead of inside the item.
+		if comment := footCommentWrittenAbove(node.Content, i); comment != "" {
+			extractedHeadComment = comment + "\n\n" + extractedHeadComment
+			item = withoutFirstKeyFootComment(item)
+		}
+
 		itemBytes, err := enc.marshal(item, nodePath.AppendSeqPart(i))
 		if err != nil {
 			return nil, err
@@ -483,6 +491,145 @@ func (enc Encoder) marshalSequence(node *yaml.Node, nodePath path.Path) ([]byte,
 	}
 
 	return bytes.Join(lines, sep), nil
+}
+
+// footCommentWrittenAbove returns the foot comment of items[i]'s first key if
+// that comment was written above the item, or "" otherwise.
+//
+// yaml.v3 stores a comment that is followed by an empty line as a foot
+// comment, and attaches it to the node that comes next rather than the one
+// before. For a comment above a block sequence item, that node is the first
+// key of the item's mapping:
+//
+//	pipeline:
+//	  - uses: a
+//	  # c
+//
+//	  - uses: b
+//
+// gives the key "uses" of the second item the FootComment "# c". Rendered as
+// a foot comment of that key, "# c" ends up below the key's value, inside the
+// second item.
+//
+// The same field also holds comments that do follow the key's value: a
+// comment between the first and the second key (yaml.v3 moves it from the
+// second key to the first), or a comment after a single-key item (yaml.v3
+// moves the mapping's foot comment to its last key). The source positions
+// tell these apart. A comment written above the item needs its own lines plus
+// its empty line between the end of the previous item and the first key, and
+// there is no such room between the first value and the second key.
+func footCommentWrittenAbove(items []*yaml.Node, i int) string {
+	if i == 0 {
+		// yaml.v3 makes a comment above the first item a head comment.
+		return ""
+	}
+
+	item := items[i]
+	if item.Kind != yaml.MappingNode || item.Style&yaml.FlowStyle != 0 || len(item.Content) < 2 {
+		return ""
+	}
+
+	key := item.Content[0]
+	comment := key.FootComment
+	if comment == "" {
+		return ""
+	}
+
+	previousEnd := lastLine(items[i-1])
+	if key.Line == 0 || previousEnd == 0 {
+		// Nodes built in code carry no positions.
+		return ""
+	}
+
+	// The comment's own lines and the empty line that follows it.
+	needed := commentLines(comment) + 1
+
+	roomAbove := key.Line - previousEnd - 1 - commentLines(item.HeadComment)
+	if roomAbove < needed {
+		return ""
+	}
+
+	if len(item.Content) >= 4 {
+		second := item.Content[2]
+		roomBetween := second.Line - lastLine(item.Content[1]) - 1 - commentLines(second.HeadComment)
+		if roomBetween >= needed {
+			// The comment fits between the first value and the second key as
+			// well, so leave it where yaml.v3 put it.
+			return ""
+		}
+	}
+
+	return comment
+}
+
+// withoutFirstKeyFootComment returns a shallow copy of the mapping item whose
+// first key has no foot comment, leaving the input node untouched.
+func withoutFirstKeyFootComment(item *yaml.Node) *yaml.Node {
+	key := *item.Content[0]
+	key.FootComment = ""
+
+	content := slices.Clone(item.Content)
+	content[0] = &key
+
+	itemCopy := *item
+	itemCopy.Content = content
+	return &itemCopy
+}
+
+// lastLine returns the last source line a parsed node occupies, counting the
+// lines of a block scalar and any foot comment rendered after the node. It
+// returns 0 when the node, or the node it ends with, carries no position.
+//
+// A plain or quoted scalar that spanned several source lines counts as one
+// line, since its line breaks are folded into the value, so the result is a
+// lower bound for those.
+func lastLine(n *yaml.Node) int {
+	var line int
+	switch {
+	case n.Kind == yaml.MappingNode && len(n.Content) >= 2:
+		lastKey, lastValue := n.Content[len(n.Content)-2], n.Content[len(n.Content)-1]
+		line = lastLine(lastValue)
+		if line == 0 {
+			return 0
+		}
+		// A key's foot comment is rendered after the key's value.
+		line += commentLines(lastKey.FootComment)
+	case len(n.Content) > 0:
+		line = lastLine(n.Content[len(n.Content)-1])
+		if line == 0 {
+			return 0
+		}
+	default:
+		line = n.Line
+		if line == 0 {
+			return 0
+		}
+		if n.Kind == yaml.ScalarNode && n.Style&(yaml.LiteralStyle|yaml.FoldedStyle) != 0 {
+			line += blockScalarLines(n.Value)
+		}
+	}
+
+	return line + commentLines(n.FootComment)
+}
+
+// commentLines returns the number of source lines a comment occupies. A
+// trailing newline in a head comment stands for an empty line after it, so it
+// counts.
+func commentLines(comment string) int {
+	if comment == "" {
+		return 0
+	}
+	return strings.Count(comment, "\n") + 1
+}
+
+// blockScalarLines returns the number of lines a literal or folded block
+// scalar's content takes up below its indicator. The line breaks folded into
+// a folded scalar are lost, so for those the result is a lower bound.
+func blockScalarLines(value string) int {
+	if value == "" {
+		return 0
+	}
+	return strings.Count(strings.TrimSuffix(value, "\n"), "\n") + 1
 }
 
 func (enc Encoder) applyIndent(content []byte) []byte {
