@@ -2,6 +2,8 @@ package formatted
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -886,6 +888,77 @@ func TestQuoteScalars(t *testing.T) {
 			}
 			if diff := cmp.Diff(tt.wantV, v); diff != "" {
 				t.Errorf("quote %v on %q: decoded value changed (-want +got):\n%s", tt.quote, tt.input, diff)
+			}
+		})
+	}
+}
+
+// TestConfigDefaultIndent checks that a config without indent keeps the
+// default of 2 instead of flattening nested content to column 0 (#269), both
+// through UseOptions and through AutomaticConfig.
+func TestConfigDefaultIndent(t *testing.T) {
+	const input = "a:\n  b:\n    c: 1\n"
+
+	tests := []struct {
+		name   string
+		config string // contents of .yam.yaml
+		auto   bool   // load via AutomaticConfig instead of UseOptions
+		want   string
+	}{{
+		name:   "UseOptions without indent keeps the default indent",
+		config: "gap:\n  - .b\n",
+		want:   input,
+	}, {
+		name:   "UseOptions with empty options keeps the default indent",
+		config: "{}\n",
+		want:   input,
+	}, {
+		name:   "UseOptions with indent 2 indents by 2",
+		config: "indent: 2\n",
+		want:   input,
+	}, {
+		name:   "UseOptions with indent 4 indents by 4",
+		config: "indent: 4\n",
+		want:   "a:\n    b:\n        c: 1\n",
+	}, {
+		name:   "AutomaticConfig without indent keeps the default indent",
+		config: "gap:\n  - .b\n",
+		auto:   true,
+		want:   input,
+	}, {
+		name:   "AutomaticConfig with indent 2 indents by 2",
+		config: "indent: 2\n",
+		auto:   true,
+		want:   input,
+	}}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := &yaml.Node{}
+			require.NoError(t, yaml.Unmarshal([]byte(input), root))
+
+			var buf bytes.Buffer
+			enc := NewEncoder(&buf)
+			if tt.auto {
+				dir := t.TempDir()
+				require.NoError(t, os.WriteFile(filepath.Join(dir, ".yam.yaml"), []byte(tt.config), 0o600))
+				t.Chdir(dir)
+				enc = enc.AutomaticConfig()
+			} else {
+				opts, err := ReadConfigFrom(strings.NewReader(tt.config))
+				require.NoError(t, err)
+				enc, err = enc.UseOptions(*opts)
+				require.NoError(t, err)
+			}
+			require.NoError(t, enc.Encode(root))
+
+			checkDiff(t, tt.want, buf.String())
+
+			var want, got any
+			require.NoError(t, yaml.Unmarshal([]byte(input), &want))
+			require.NoError(t, yaml.Unmarshal(buf.Bytes(), &got), "formatted output must parse:\n%s", buf.String())
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("config %q: formatted output decodes to different data (-want +got):\n%s", tt.config, diff)
 			}
 		})
 	}
